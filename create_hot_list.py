@@ -1,5 +1,6 @@
 import pywikibot
 import re
+import time
 from collections import defaultdict
 
 def get_missing_substances(site, page_title):
@@ -53,13 +54,13 @@ def count_wikipedia_languages(site, wikidata_id):
         return -1
 
 def update_wikipedia_page(site, results):
-    page = pywikibot.Page(site, page_title)
+    page = pywikibot.Page(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Zusatzinformationen")
     content = page.text
     
     # Trenne den vorhandenen Inhalt in den Teil vor "Zusatzinformationen" und den Rest
     match = re.search(r'(^.*?)(==\s*Zusatzinformationen\s*==)', content, re.DOTALL)
     if match:
-        pre_text = match.group(1)
+        pre_text = match.group(1).strip()
         new_content = f"{pre_text}\n\n== Zusatzinformationen ==\n"
     else:
         new_content = "== Zusatzinformationen ==\n"
@@ -72,7 +73,38 @@ def update_wikipedia_page(site, results):
     page.text = new_content
     page.save(summary="Automatische Aktualisierung der Zusatzinformationen")
 
+
+def human_readable_time_difference(start_time, end_time):
+    """
+    Gibt die Zeitdifferenz zwischen zwei datetime-Objekten in menschlich lesbarer Form zurück.
+
+    :param start_time: Das Start-datetime-Objekt.
+    :param end_time: Das End-datetime-Objekt.
+    :return: Ein String, der die Zeitdifferenz in einer lesbaren Form darstellt.
+    """
+    # Berechne die Differenz
+    delta = end_time - start_time
+    
+    # Extrahiere Tage, Stunden, Minuten und Sekunden
+    days, seconds = divmod (delta, 3600*24)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
+    
+    # Baue die menschlich lesbare Form auf
+    result = []
+    if days > 0:
+        result.append(f"{days} Tage")
+    if hours > 0:
+        result.append(f"{hours} Stunden")
+    if minutes > 0:
+        result.append(f"{minutes} Minuten")
+    if seconds > 0:
+        result.append(f"{round(seconds,1)} Sekunden")
+    
+    return ', '.join(result)
+
 def main():
+    zeitanfang = time.time()	
     print("Start ...")
     site = pywikibot.Site('de', 'wikipedia')
 
@@ -101,6 +133,7 @@ def main():
     results.sort(key=lambda x: (not x[2], -x[1], -x[3]))
     
     update_wikipedia_page(site, results)
+    print("\nLaufzeit: ",human_readable_time_difference(zeitanfang, time.time()))
 
 if __name__ == "__main__":
     main()

@@ -59,19 +59,32 @@ def update_wikipedia_page(site, results):
     
     # Trenne den vorhandenen Inhalt in den Teil vor "Zusatzinformationen" und den Rest
     match = re.search(r'(^.*?)(==\s*Zusatzinformationen\s*==)', content, re.DOTALL)
-    if match:
-        pre_text = match.group(1).strip()
-        new_content = f"{pre_text}\n\n== Zusatzinformationen ==\n"
-    else:
-        new_content = "== Zusatzinformationen ==\n"
-    
-    for substance, links, german, langs, wikidata in results:
-        german_text = "(dabei auch anderer Artikel in Deutsch) " if german else ""
-        new_content += f"* [[Spezial:Linkliste/{substance}|{links:3d}]] Link(s) auf und in [[:d:{wikidata}|{langs:3d}]] anderen Sprachen {german_text}vorhanden für [[{substance}]]\n"
-    
-    # Seite aktualisieren
+    pre_text = match.group(1).strip() if match else ""
+    new_content = f"{pre_text}\n\n== Zusatzinformationen ==\n"
+
+    for wikidata, data in results.items():
+        german_text = "(dabei auch anderer Artikel in Deutsch) " if data["has_german"] else ""
+        if len(data["substances"]) == 1:
+            substance = data["substances"][0]
+            links = data['links'][0]
+            new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf und in [[:d:{wikidata}|{data['langs']}]] anderen Sprachen {german_text}vorhanden für [[{substance}]]\n"
+        else:
+            # print(data["substances"])
+            substance_list = ""
+            linklist_list = ""
+            count = 0
+            for s in data["substances"]:
+                substance_list += f"[[{s}]]/"
+                links = f"{data['links'][count]}"
+                linklist_list += f"[[Spezial:Linkliste/{s}|{links}]]+"
+                count += 1
+            
+            new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) auf und in [[:d:{wikidata}|{data['langs']}]] anderen Sprachen {german_text}vorhanden für {substance_list.rstrip("/")}\n"
+
     page.text = new_content
+    # print(new_content)
     page.save(summary="Automatische Aktualisierung der Zusatzinformationen")
+
 
 def human_readable_time_difference(start_time, end_time):
     """
@@ -111,27 +124,31 @@ def main():
     
     print("Get missing substances ...")
     substances = get_missing_substances(site, page_title)
-    results = []
     
-    print("Get information for pages ...")
+    results = defaultdict(lambda: {"substances": [], "links": [], "has_german": False, "langs": 0})
+    
     count = 0
-    for count, substance in enumerate(substances, start=1):
-        # print(substance[0], " ", substance[0])
-        incoming_links = count_incoming_links(site, substance[0])
-        has_german = has_german_wikipedia_link(site, substance[1])
-        language_count = count_wikipedia_languages(site, substance[1])
+    print("Get information for pages ...")
+    for count, (name, wikidata_id) in enumerate(substances, start=1):
+        incoming_links = count_incoming_links(site, name)
+        has_german = has_german_wikipedia_link(site, wikidata_id)
+        language_count = count_wikipedia_languages(site, wikidata_id)
         
-        print(f"{count}/{len(substances)} {substance[0]}: {incoming_links} Links, Deutscher Artikel: {has_german}, Sprachen: {language_count}")
-        results.append((substance[0], incoming_links, has_german, language_count, substance[1]))
+        print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Deutscher Artikel: {has_german}, Sprachen: {language_count}")
         
-        # if count >= 20:
+        results[wikidata_id]["substances"].append(name)
+        results[wikidata_id]["links"].append(incoming_links)
+        results[wikidata_id]["has_german"] |= has_german
+        results[wikidata_id]["langs"] = max(results[wikidata_id]["langs"], language_count)
+        
+        #if (count >= 500):
         #    break
-
-    print("Sorting results ...")
-    # Sortierung nach: has_german (False zuerst), incoming_links (absteigend), language_count (absteigend)
-    results.sort(key=lambda x: (not x[2], -x[1], -x[3]))
     
-    update_wikipedia_page(site, results)
+    print("Sorting results ...")
+    sorted_results = dict(sorted(results.items(), key=lambda x: (not x[1]["has_german"], -sum(x[1]["links"]), -x[1]["langs"])))
+
+    update_wikipedia_page(site, sorted_results)
+
     print("\nLaufzeit: ",human_readable_time_difference(zeitanfang, time.time()))
 
 if __name__ == "__main__":

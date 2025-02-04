@@ -67,12 +67,11 @@ def update_wikipedia_page(site, results):
     
     for substance, links, german, langs, wikidata in results:
         german_text = "(dabei auch anderer Artikel in Deutsch) " if german else ""
-        new_content += f"* {links:3d} Link(s) auf und in [[:d:{wikidata}|{langs:3d}]] anderen Sprachen {german_text}vorhanden für [[{substance}]]\n"
+        new_content += f"* [[Spezial:Linkliste/{substance}|{links:3d}]] Link(s) auf und in [[:d:{wikidata}|{langs:3d}]] anderen Sprachen {german_text}vorhanden für [[{substance}]]\n"
     
     # Seite aktualisieren
     page.text = new_content
     page.save(summary="Automatische Aktualisierung der Zusatzinformationen")
-
 
 def human_readable_time_difference(start_time, end_time):
     """

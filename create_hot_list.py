@@ -62,7 +62,7 @@ def update_wikipedia_page(site, results):
     new_content = f"{pre_text}\n\n== Zusatzinformationen ==\n"
 
     for wikidata, data in results.items():
-        german_text = f"(dabei auch anderer Artikel [[{data["german_name"]}]] in Deutsch ) " if data["has_german"] else ""
+        german_text = f"(dabei auch anderer Artikel [[{data["german_name"]}]] in Deutsch) " if data["has_german"] else ""
         if len(data["substances"]) == 1:
             substance = data["substances"][0]
             links = data['links'][0]
@@ -124,7 +124,7 @@ def main():
     print("Get missing substances ...")
     substances = get_missing_substances(site, page_title)
     
-    results = defaultdict(lambda: {"substances": [], "links": [], "has_german": False, "german_name": "", "langs": 0})
+    results = defaultdict(lambda: {"substances": [], "links": [], "has_german": False, "german_name": "", "langs": -1})
     
     count = 0
     print("Get information for pages ...")

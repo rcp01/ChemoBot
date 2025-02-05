@@ -301,6 +301,7 @@ def count_wikipedia_languages(site, wikidata_id):
         print(f"Fehler beim Abrufen von {wikidata_id}: {e}")
         return None
 
+
 if __name__ == "__main__":
     # Pywikibot-Site initialisieren
     site = pywikibot.Site('de', 'wikipedia')
@@ -316,11 +317,6 @@ if __name__ == "__main__":
 
     abb_list = load_short_list(site)
 
-    print("Load redlinks ...")
-
-    # section_title = "Rotlinks"
-    section_title = "Aktuell"
-    redlink_list = analyze_redlinks_section(site, section_title)
 
     print("Load missing pages ...")
 
@@ -361,6 +357,10 @@ if __name__ == "__main__":
        exit(0)
 
     updated_irrelevant_list_text = irrelevant_list_page.text
+
+    print("Load redlinks ...")
+
+    redlink_list = analyze_redlinks_section(site, "Rotlinks") + analyze_redlinks_section(site, "Aktuell")
 
     print("Analyze redlinks ...")
 

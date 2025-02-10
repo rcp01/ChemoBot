@@ -57,6 +57,7 @@ def format_missing_page_string(name, cas_wd):
     
     # Beispiel: [[1,4-Heptonolacton]] (89-67-8, [[:d:Q27282913|wd]]) -
     cas_wd = re.sub(r",Q(\d+)", r", [[:d:Q\1|wd]]", cas_wd)
+    cas_wd = re.sub(r"^Q(\d+)", r"[[:d:Q\1|wd]]", cas_wd)
     
     return name + " (" + cas_wd + ") -"
 

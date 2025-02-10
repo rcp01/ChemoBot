@@ -3,41 +3,59 @@ import re
 import time
 from collections import defaultdict
 
+unknown_wikidata = "Q000000"
+
 def get_missing_substances(site, page_title):
     """Extrahiert die Liste der fehlenden Substanzen von der Wikipedia-Seite."""
     page = pywikibot.Page(site, page_title)
     content = page.text
-    #substances = re.findall(r'\[\[(.*?)\]\] \(.*\[\[:d:(Q\d+)', content)
-    substances = re.findall(r'\[\[([^|\]]+)[^\]]*\]\] \(.*\[\[:d:(Q\d+)', content)
+
+    matches = re.findall(r'\[\[([^|\]]+)[^\]]*\]\] \((.*?)\)', content)
+
+    substances = []
+    for name, bracket_content in matches:
+        wikidata_match = re.search(r'\[\[:d:(Q\d+)', bracket_content)
+        # print(bracket_content, wikidata_match)
+        wikidata_id = wikidata_match.group(1) if wikidata_match else unknown_wikidata
+        substances.append((name, wikidata_id))
+
+    # Einträge ohne Klammer
+    matches = re.findall(r'\[\[([^|\]]+)[^\]]*\]\] -', content)
+    for name in matches:
+        substances.append((name, unknown_wikidata))
+  
     # print(substances)
     return substances
+
+def getWikidataItem(site, wikidata_id):
+    try:
+        repo = site.data_repository()  # Daten-Repository für Wikidata
+        item = pywikibot.ItemPage(repo, wikidata_id)  # Wikidata-Item laden
+        item.get()  # Daten abrufen
+        return item
+    except Exception as e:
+        print(f"Fehler beim Abrufen von {wikidata_id}: {e}")
+        return None
 
 def count_incoming_links(site, title):
     """Zählt die Anzahl der eingehenden Links auf eine Seite in der Wikipedia."""
     page = pywikibot.Page(site, title)
     return len(list(page.backlinks(namespaces=[0])))  # Nur Artikel-Namensraum
 
-def has_german_wikipedia_link(site, wikidata_id):
-    repo = site.data_repository()  # Daten-Repository für Wikidata
-    item = pywikibot.ItemPage(repo, wikidata_id)  # Wikidata-Item laden
+def has_german_wikipedia_link(site, item):
     
-    try:
-        item.get()  # Daten abrufen
+    if item:
         german_page = item.sitelinks.get('dewiki', None)
         return {
             "has_german_wikipedia_link": german_page is not None,
             "german_page_name": german_page.title if german_page else ""
             }
-    except Exception as e:
-        print(f"Fehler beim Abrufen von {wikidata_id}: {e}")
+    else:
         return {"has_german_wikipedia_link": False, "german_page_name":""}
 
-def count_wikipedia_languages(site, wikidata_id):
-    repo = site.data_repository() # Daten-Repository für Wikidata
-    item = pywikibot.ItemPage(repo, wikidata_id)  # Wikidata-Item laden
+def count_wikipedia_languages(site, item):
 
-    try:
-        item.get()  # Daten abrufen
+    if item:
         # Filtere nur Wikipedia-Sprachlinks (die Endung '.wikipedia.org' haben)
 
         language_count = len(item.sitelinks)  # Anzahl der Sprachlinks zählen
@@ -48,8 +66,7 @@ def count_wikipedia_languages(site, wikidata_id):
 
         # print(f"{wikidata_id} hat Wikipedia-Artikel in {language_count} Sprachen.")
         return language_count
-    except Exception as e:
-        print(f"Fehler beim Abrufen von {wikidata_id}: {e}")
+    else:
         return -1
 
 def update_wikipedia_page(site, results):
@@ -129,17 +146,31 @@ def main():
     count = 0
     print("Get information for pages ...")
     for count, (name, wikidata_id) in enumerate(substances, start=1):
-        incoming_links = count_incoming_links(site, name)
-        result = has_german_wikipedia_link(site, wikidata_id)
-        language_count = count_wikipedia_languages(site, wikidata_id)
         
-        print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}")
+        if wikidata_id == unknown_wikidata:
+            incoming_links = count_incoming_links(site, name)
+            
+            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Deutscher Artikel: {False}, Sprachen: {-1}")
+            
+            results[name]["substances"].append(name)
+            results[name]["links"].append(incoming_links)
+            results[name]["has_german"] |= False
+            results[name]["german_name"] = ""
+            results[name]["langs"] = -1
         
-        results[wikidata_id]["substances"].append(name)
-        results[wikidata_id]["links"].append(incoming_links)
-        results[wikidata_id]["has_german"] |= result["has_german_wikipedia_link"]
-        results[wikidata_id]["german_name"] = result["german_page_name"]
-        results[wikidata_id]["langs"] = max(results[wikidata_id]["langs"], language_count)
+        else:
+            incoming_links = count_incoming_links(site, name)
+            item = getWikidataItem(site, wikidata_id)
+            result = has_german_wikipedia_link(site, item)
+            language_count = count_wikipedia_languages(site, item)
+            
+            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}")
+            
+            results[wikidata_id]["substances"].append(name)
+            results[wikidata_id]["links"].append(incoming_links)
+            results[wikidata_id]["has_german"] |= result["has_german_wikipedia_link"]
+            results[wikidata_id]["german_name"] = result["german_page_name"]
+            results[wikidata_id]["langs"] = max(results[wikidata_id]["langs"], language_count)
         
         #if (count >= 500):
         #    break

@@ -197,7 +197,7 @@ def process_category(category_names, exclusion_category_names, site, missing_sub
 
         if time.time() - start_time >= interval:
             start_time = time.time()  # Reset der Startzeit für die nächste Nachricht
-            print(f"{pages_checked}. Seite: {page.title()}")
+            print(f"{pages_checked}. Anzahl bisheriger Rotlinks: {redlink_count}, aktuelle Seite: {page.title()}")
 
         if page.namespace() == 0 and not page.isRedirectPage():  # Nur Artikel im Hauptnamensraum analysieren
             try:

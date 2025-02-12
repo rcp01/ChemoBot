@@ -106,6 +106,44 @@ def get_ignore_list(site):
 
     return substances
 
+
+def get_exclusion_list(site):
+    """
+    Extrahiert die Liste der zu ignorierenden Seite von der angegebenen Seite.
+
+    Args:
+        site (pywikibot.Site): Die Site-Instanz für Wikipedia.
+
+    Returns:
+        list: Eine Liste mit den Namen der fehlenden Substanzen.
+    """
+    
+    page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Gruppenausschluss"
+    substances = []
+    print(f"Analysiere die Seite '{page_title}'...")
+    page = pywikibot.Page(site, page_title)
+
+    try:
+        # Lade den Seiteninhalt
+        content = page.text
+
+        # Suche nach Listeneinträgen (Elemente in einer wikitext-Liste)
+        # Annahme: Die Substanzen stehen in Zeilen, die mit einem "*" beginnen
+        matches = re.findall(r'^\[\[(.*)\]\] ', content, re.MULTILINE)
+
+        # Entferne mögliche Kommentare oder Formatierungen (z.B. Links)
+        for match in matches:
+            # Entferne [[ und ]] von Links und trimme Leerzeichen
+            substances.append(match)
+            # print(match)
+
+    except Exception as e:
+        traceback.print_exc()
+        print(f"Fehler beim Abrufen oder Analysieren der Seite: {e}")
+
+    return substances
+
+
 def find_red_links(page):
     """
     Gibt eine Liste aller nicht existierenden, verlinkten Artikel auf der angegebenen Wikipedia-Seite zurück.
@@ -121,7 +159,7 @@ def find_red_links(page):
         return [
             linked_page.title()
             for linked_page in page.linkedPages()
-            if not linked_page.exists() and not linked_page.title().startswith("Vorlage:")
+            if not linked_page.exists() and linked_page.namespace() == 0 and not linked_page.title().startswith("Vorlage:")
         ]
     except Exception as e:
         traceback.print_exc()
@@ -163,7 +201,7 @@ def filter_pages(target_pages_gen, exclusion_pages_gen):
             yield page
 
 
-def process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list):
+def process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list):
     """
     Analysiert alle Seiten in einer Kategorie und deren Unterkategorien, um Rotlinks zu finden.
 
@@ -181,7 +219,7 @@ def process_category(category_names, exclusion_category_names, site, missing_sub
     for exclusion_category_name in exclusion_category_names:
         print(f"Seiten aus Kategorie {exclusion_category_name} ausschließen...")
         exclusion_pages = itertools.chain(exclusion_pages, get_pages_in_category(exclusion_category_name, site))
-
+        
     print("Filterung der Zielseiten...")
     filtered_pages = filter_pages(target_pages, exclusion_pages)
 
@@ -199,7 +237,7 @@ def process_category(category_names, exclusion_category_names, site, missing_sub
             start_time = time.time()  # Reset der Startzeit für die nächste Nachricht
             print(f"{pages_checked}. Anzahl bisheriger Rotlinks: {redlink_count}, aktuelle Seite: {page.title()}")
 
-        if page.namespace() == 0 and not page.isRedirectPage():  # Nur Artikel im Hauptnamensraum analysieren
+        if page.namespace() == 0 and not page.isRedirectPage() and not page.title() in exclusion_list:  # Nur Artikel im Hauptnamensraum analysieren
             try:
                 red_links = find_red_links(page)
                 for red_link in red_links:
@@ -308,13 +346,14 @@ if __name__ == "__main__":
     # fehlende Substanzen Seite auswerten 
     missing_substances_list = get_missing_substances_list(site)
     ignore_list = get_ignore_list(site)
+    exclusion_list = get_exclusion_list(site)
 
     # Kategorien und Ausschlüsse
     category_names = ["Kategorie:Chemische Verbindung nach Element", "Kategorie:Chemische Verbindung nach Strukturelement"]
     exclusion_category_names = ["Kategorie:Mineral", "Kategorie:Chemikaliengruppe", "Kategorie:Wirkstoffgruppe"]
 
     # Analyse starten
-    process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list)
+    process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list)
 
     # Rotlinks speichern
     update_wikipedia_page(site, rotlinks)

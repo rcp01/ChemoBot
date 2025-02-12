@@ -103,6 +103,44 @@ def get_missing_substances_list(site):
         print(f"Fehler beim Abrufen oder Analysieren der Seite: {e}")
         return []
 
+def get_exclusion_list(site):
+    """
+    Extrahiert die Liste der zu ignorierenden Seite von der angegebenen Seite.
+
+    Args:
+        site (pywikibot.Site): Die Site-Instanz für Wikipedia.
+
+    Returns:
+        list: Eine Liste mit den Namen der fehlenden Substanzen.
+    """
+    
+    page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Gruppenausschluss"
+    substances = []
+    print(f"Analysiere die Seite '{page_title}'...")
+    page = pywikibot.Page(site, page_title)
+
+    try:
+        # Lade den Seiteninhalt
+        content = page.text
+
+        # Suche nach Listeneinträgen (Elemente in einer wikitext-Liste)
+        # Annahme: Die Substanzen stehen in Zeilen, die mit einem "*" beginnen
+        matches = re.findall(r'^\[\[(.*)\]\] ', content, re.MULTILINE)
+
+        # Entferne mögliche Kommentare oder Formatierungen (z.B. Links)
+        for match in matches:
+            # Entferne [[ und ]] von Links und trimme Leerzeichen
+            substances.append(match)
+            # print(match)
+
+    except Exception as e:
+        traceback.print_exc()
+        print(f"Fehler beim Abrufen oder Analysieren der Seite: {e}")
+
+    print(substances)
+    return substances
+
+
 def extract_template_parameters(page_text, template_name):
     template_pattern = re.compile(r"{{\s*Substanzinfo.*?}}", re.DOTALL)
     matches = template_pattern.findall(page_text)
@@ -184,6 +222,9 @@ def main():
     # Lade liste der zu ignorierenden Seite
     ignore_list = get_ignore_list(site)
 
+    # Lade liste der zu ignorierenden Seite
+    exclusion_list = get_exclusion_list(site)
+
     # fehlende Substanzen Seite auswerten 
     missing_substances_list = get_missing_substances_list(site)
 
@@ -209,7 +250,7 @@ def main():
     # Seiten mit der Vorlage auflisten und Parameter extrahieren
     for page in pages:
         # if not page.isRedirectPage() and ((page.namespace() == 0) or (page.title() == "Benutzer:Anagkai/Substanzinfos")):
-        if not page.isRedirectPage() and ((page.namespace() == 0) ):
+        if not page.isRedirectPage() and ((page.namespace() == 0) and not page.title() in exclusion_list):
             global pages_checked
             pages_checked += 1
 

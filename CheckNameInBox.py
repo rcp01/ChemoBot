@@ -21,6 +21,13 @@ def extract_name_parameter(infobox_text):
         return name_match.group(1).strip()
     return None
 
+def extract_freiname_parameter(infobox_text):
+    """Extrahiert den Wert des 'Freiname'-Parameters aus der Infobox."""
+    name_match = re.search(r'^\s*\|\s*Freiname\s*=\s*([^\n|]+)', infobox_text, re.MULTILINE)
+    if name_match:
+        return name_match.group(1).strip()
+    return None
+
 def extract_title_template(page_text, template_name):
     """Extrahiert den Wert aus SEITENTITEL oder DISPLAYTITLE."""
     title_match = re.search(r'{{\s*' + re.escape(template_name) + r'\s*\:\s*([^\n|}]+)', page_text, re.IGNORECASE)
@@ -89,14 +96,17 @@ def main():
             if not infobox_text:
                 print("No infobox found")
             name_value = extract_name_parameter(infobox_text)
+            freiname_value = extract_freiname_parameter(infobox_text)
             title_value = extract_title_template(page_text, "SEITENTITEL") or extract_title_template(page_text, "DISPLAYTITLE")
 
             # print(infobox_text)
             # print(name_value)
             # exit(0)
             
-            if title_value and (name_value is None or name_value.replace("[","(").replace("]",")") != title_value):
-                print(f"* [[{page.title()}]] (Infobox-Name: {name_value if name_value else 'Nicht vorhanden'}, SEITENTITEL/DISPLAYTITLE: {title_value})")
+            if title_value and (name_value is None or name_value.replace("[","(").replace("]",")").replace("{","(").replace("}",")").replace("<br />", "").replace("&shy;","") != title_value.replace("<wbr>","")):
+                # print(f"freiname_value = {freiname_value}")
+                if not freiname_value or freiname_value == "":
+                    print(f"* [[{page.title()}]] (Infobox-Name: {name_value if name_value else 'Nicht vorhanden'}, SEITENTITEL/DISPLAYTITLE: {title_value})")
 
         except Exception as e:
             print(f"Fehler beim Verarbeiten der Seite {page.title()}: {e}")

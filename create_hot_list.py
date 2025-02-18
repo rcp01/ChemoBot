@@ -4,6 +4,7 @@ import time
 from collections import defaultdict
 
 unknown_wikidata = "Q000000"
+unknown_cas = "-"
 
 def get_missing_substances(site, page_title):
     """Extrahiert die Liste der fehlenden Substanzen von der Wikipedia-Seite."""
@@ -15,15 +16,19 @@ def get_missing_substances(site, page_title):
     substances = []
     for name, bracket_content in matches:
         wikidata_match = re.search(r'\[\[:d:(Q\d+)', bracket_content)
-        # print(bracket_content, wikidata_match)
         wikidata_id = wikidata_match.group(1) if wikidata_match else unknown_wikidata
-        substances.append((name, wikidata_id))
+        # print(bracket_content)
+        cas_match = re.search(r'(\d+-\d+-\d)', bracket_content)
+        cas_nr = cas_match.group(1) if cas_match else unknown_cas
+        # print(bracket_content, wikidata_match)
+        substances.append((name, wikidata_id, cas_nr))
 
     # Einträge ohne Klammer
     matches = re.findall(r'\[\[([^|\]]+)[^\]]*\]\] -', content)
     for name in matches:
-        substances.append((name, unknown_wikidata))
-  
+        cas_match = re.search(r'\d+-\d+-\d', bracket_content)
+        cas_nr = cas_match.group(1) if cas_match else unknown_cas
+        substances.append((name, unknown_wikidata, cas_nr))
     # print(substances)
     return substances
 
@@ -80,10 +85,11 @@ def update_wikipedia_page(site, results):
 
     for wikidata, data in results.items():
         german_text = f"(dabei auch anderer Artikel [[{data["german_name"]}]] in Deutsch) " if data["has_german"] else ""
+        cas_nr = data["cas_nr"]
         if len(data["substances"]) == 1:
             substance = data["substances"][0]
             links = data['links'][0]
-            new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf und in [[:d:{wikidata}|{data['langs']}]] anderen Sprachen {german_text}vorhanden für [[{substance}]]\n"
+            new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf und in [[:d:{wikidata}|{data['langs']}]] anderen Sprachen {german_text}vorhanden für [[{substance}]], CAS:{cas_nr}\n"
         else:
             # print(data["substances"])
             substance_list = ""
@@ -95,10 +101,10 @@ def update_wikipedia_page(site, results):
                 linklist_list += f"[[Spezial:Linkliste/{s}|{links}]]+"
                 count += 1
             
-            new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) auf und in [[:d:{wikidata}|{data['langs']}]] anderen Sprachen {german_text}vorhanden für {substance_list.rstrip("/")}\n"
+            new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) auf und in [[:d:{wikidata}|{data['langs']}]] anderen Sprachen {german_text}vorhanden für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"
 
     page.text = new_content
-    # print(new_content)
+    #print(new_content)
     page.save(summary="Automatische Aktualisierung der Zusatzinformationen")
 
 
@@ -141,22 +147,23 @@ def main():
     print("Get missing substances ...")
     substances = get_missing_substances(site, page_title)
     
-    results = defaultdict(lambda: {"substances": [], "links": [], "has_german": False, "german_name": "", "langs": -1})
+    results = defaultdict(lambda: {"substances": [], "links": [], "has_german": False, "german_name": "", "langs": -1, "cas_nr" : ""})
     
     count = 0
     print("Get information for pages ...")
-    for count, (name, wikidata_id) in enumerate(substances, start=1):
+    for count, (name, wikidata_id, cas_nr) in enumerate(substances, start=1):
         
         if wikidata_id == unknown_wikidata:
             incoming_links = count_incoming_links(site, name)
             
-            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Deutscher Artikel: {False}, Sprachen: {-1}")
+            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Deutscher Artikel: {False}, Sprachen: {-1}, cas: {cas_nr}")
             
             results[name]["substances"].append(name)
             results[name]["links"].append(incoming_links)
             results[name]["has_german"] |= False
             results[name]["german_name"] = ""
             results[name]["langs"] = -1
+            results[name]["cas_nr"] = cas_nr
         
         else:
             incoming_links = count_incoming_links(site, name)
@@ -164,13 +171,14 @@ def main():
             result = has_german_wikipedia_link(site, item)
             language_count = count_wikipedia_languages(site, item)
             
-            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}")
+            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}, cas: {cas_nr}")
             
             results[wikidata_id]["substances"].append(name)
             results[wikidata_id]["links"].append(incoming_links)
             results[wikidata_id]["has_german"] |= result["has_german_wikipedia_link"]
             results[wikidata_id]["german_name"] = result["german_page_name"]
             results[wikidata_id]["langs"] = max(results[wikidata_id]["langs"], language_count)
+            results[wikidata_id]["cas_nr"] = cas_nr
         
         #if (count >= 500):
         #    break

@@ -235,7 +235,7 @@ def process_category(category_names, exclusion_category_names, site, missing_sub
 
         if time.time() - start_time >= interval:
             start_time = time.time()  # Reset der Startzeit für die nächste Nachricht
-            print(f"{pages_checked}. Anzahl bisheriger Rotlinks: {redlink_count}, aktuelle Seite: {page.title()}")
+        print(f"{pages_checked}. Anzahl bisheriger unbekannter Rotlinks: {redlink_count}, aktuelle Seite: {page.title()}")
 
         if page.namespace() == 0 and not page.isRedirectPage() and not page.title() in exclusion_list:  # Nur Artikel im Hauptnamensraum analysieren
             try:
@@ -248,7 +248,7 @@ def process_category(category_names, exclusion_category_names, site, missing_sub
                                 redlink_count = redlink_count + 1
                             rotlinks[red_link].append("[[" + page.title() + "]]")
                             if (redlink_count >= 500):
-                                return
+                                return page.title()
                         # else:
                         #     print(red_link + " bereits auf Ausschlussseite")
                     # else:
@@ -256,9 +256,9 @@ def process_category(category_names, exclusion_category_names, site, missing_sub
             except Exception as e:
                 traceback.print_exc()
                 print(f"Fehler beim Verarbeiten der Seite {page.title()}: {e}")
+    return page.title()
 
-
-def update_wikipedia_page(site, new_entries):
+def update_wikipedia_page(site, new_entries, last_page_name):
     page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge"
     #page_title = "Benutzer:Rjh/Test4"
     page = pywikibot.Page(site, page_title)
@@ -284,8 +284,8 @@ def update_wikipedia_page(site, new_entries):
         
         if new_text != text:
             page.text = new_text
-            page.save("Automatische Aktualisierung des Abschnitts 'Rotlinks'")
-            print("Seite aktualisiert.")
+            page.save(f'Automatische Aktualisierung des Abschnitts "Rotlinks" (letzte analysierte Seite: {last_page_name})')
+            print(f'Seite {page_title} aktualisiert.')
         else:
             print("Keine Änderungen notwendig.")
     except Exception as e:
@@ -328,11 +328,11 @@ def human_readable_time_difference(start_time, end_time):
 
     result = []
     if days > 0:
-        result.append(f"{days} Tage")
+        result.append(f"{int(days)} Tage")
     if hours > 0:
-        result.append(f"{hours} Stunden")
+        result.append(f"{int(hours)} Stunden")
     if minutes > 0:
-        result.append(f"{minutes} Minuten")
+        result.append(f"{int(minutes)} Minuten")
     if seconds > 0:
         result.append(f"{round(seconds, 1)} Sekunden")
 
@@ -353,10 +353,10 @@ if __name__ == "__main__":
     exclusion_category_names = ["Kategorie:Mineral", "Kategorie:Chemikaliengruppe", "Kategorie:Wirkstoffgruppe"]
 
     # Analyse starten
-    process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list)
+    last_page_name= process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list)
 
     # Rotlinks speichern
-    update_wikipedia_page(site, rotlinks)
+    update_wikipedia_page(site, rotlinks, last_page_name)
 
     # Zusammenfassung
     print(f"\nAnzahl geprüfter Seiten: {pages_checked}")

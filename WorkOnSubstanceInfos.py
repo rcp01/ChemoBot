@@ -137,7 +137,7 @@ def get_exclusion_list(site):
         traceback.print_exc()
         print(f"Fehler beim Abrufen oder Analysieren der Seite: {e}")
 
-    print(substances)
+    # print(substances)
     return substances
 
 
@@ -175,11 +175,11 @@ def human_readable_time_difference(start_time, end_time):
 
     result = []
     if days > 0:
-        result.append(f"{days} Tage")
+        result.append(f"{int(days)} Tage")
     if hours > 0:
-        result.append(f"{hours} Stunden")
+        result.append(f"{int(hours)} Stunden")
     if minutes > 0:
-        result.append(f"{minutes} Minuten")
+        result.append(f"{int(minutes)} Minuten")
     if seconds > 0:
         result.append(f"{round(seconds, 1)} Sekunden")
 
@@ -231,6 +231,7 @@ def main():
     # Vorlage, nach der gesucht werden soll
     template_name = "Substanzinfo"
 
+    print(f"Suche nach Seiten, die das Template {template_name} enthalten ...")
     # Generator für Seiten, die die Vorlage verwenden
     pages = list(site.search(f'hastemplate:"{template_name}"'))
        
@@ -246,6 +247,8 @@ def main():
 
     new_entries.append(f"Seiten, die die Vorlage '{template_name}' enthalten und die nicht auf [[Wikipedia:Redaktion Chemie/Fehlende Substanzen]] genannt sind:")
     new_entries.append(f"")
+
+    print(f"Analysiere {len(pages)} gefundene Seiten ...")
 
     # Seiten mit der Vorlage auflisten und Parameter extrahieren
     for page in pages:

@@ -109,8 +109,9 @@ def runsearch():
     # Setze das Wiki, auf dem du arbeiten möchtest (Wikipedia in deutscher Sprache)
     site = pywikibot.Site('de', 'wikipedia')
 
-    page = pywikibot.Page(site, "Chalkone")
-    checkpage(page, template_name)
+    # page = pywikibot.Page(site, "Benutzer:ChemoBot/Test1")
+    # checkpage(page, template_name)
+    # exit(0)
 
     # Wähle die Vorlage, nach der du suchen möchtest
     template_page = pywikibot.Page(site, template_name)

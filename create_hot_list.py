@@ -127,11 +127,11 @@ def human_readable_time_difference(start_time, end_time):
     # Baue die menschlich lesbare Form auf
     result = []
     if days > 0:
-        result.append(f"{days} Tage")
+        result.append(f"{int(days)} Tage")
     if hours > 0:
-        result.append(f"{hours} Stunden")
+        result.append(f"{int(hours)} Stunden")
     if minutes > 0:
-        result.append(f"{minutes} Minuten")
+        result.append(f"{int(minutes)} Minuten")
     if seconds > 0:
         result.append(f"{round(seconds,1)} Sekunden")
     

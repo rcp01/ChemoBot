@@ -315,7 +315,7 @@ if __name__ == "__main__":
     print("Load redlinks ...")
 
     result_red = analyze_redlinks_section(site, "Rotlinks") 
-    result_act = analyze_redlinks_section(site, "Aktuell")
+    result_act = analyze_redlinks_section(site, "Substanzinfo")
     redlink_list = result_red["redlink_list"] + result_act["redlink_list"]
 
     print("Analyze redlinks ...")

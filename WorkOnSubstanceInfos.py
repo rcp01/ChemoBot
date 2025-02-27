@@ -193,11 +193,11 @@ def update_wikipedia_page(site, new_entries):
     
     try:
         text = page.text
-        section_pattern = r'(==+\s*Aktuell\s*==+)(.*?)(?=\n==|\Z)'
+        section_pattern = r'(==+\s*Substanzinfo\s*==+)(.*?)(?=\n==|\Z)'
         match = re.search(section_pattern, text, re.DOTALL)
         
         if not match:
-            print("Abschnitt 'Aktuell' nicht gefunden.")
+            print("Abschnitt 'Substanzinfo' nicht gefunden.")
             return
         
         section_header, section_content = match.groups()
@@ -206,7 +206,7 @@ def update_wikipedia_page(site, new_entries):
         
         if new_text != text:
             page.text = new_text
-            page.save("Automatische Aktualisierung des Abschnitts 'Aktuell'")
+            page.save("Automatische Aktualisierung des Abschnitts 'Substanzinfo'")
             print("Seite aktualisiert.")
         else:
             print("Keine Änderungen notwendig.")

@@ -179,7 +179,7 @@ def get_intermediate_list(site):
         traceback.print_exc()
         print(f"Fehler beim Abrufen oder Analysieren der Seite: {e}")
 
-    print(substances)
+    # print(substances)
     return substances
 
 

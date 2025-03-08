@@ -144,6 +144,45 @@ def get_exclusion_list(site):
     return substances
 
 
+def get_intermediate_list(site):
+    """
+    Extrahiert die Liste der zu ignorierenden Seite von der angegebenen Seite.
+
+    Args:
+        site (pywikibot.Site): Die Site-Instanz für Wikipedia.
+
+    Returns:
+        list: Eine Liste mit den Namen der Substanzen.
+    """
+    
+    page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge/Zwischenlager"
+    # page_title = "Benutzer:ChemoBot/Tests/Neuzugänge/Zwischenlager"
+    substances = []
+    print(f"Analysiere die Seite '{page_title}'...")
+    page = pywikibot.Page(site, page_title)
+
+    try:
+        # Lade den Seiteninhalt
+        content = page.text
+
+        # Suche nach Listeneinträgen (Elemente in einer wikitext-Liste)
+        # Annahme: Die Substanzen stehen in Zeilen, die mit einem "*" beginnen
+        matches = re.findall(r'^\* \[\[(.*?)\]\] ', content, re.MULTILINE)
+
+        # Entferne mögliche Kommentare oder Formatierungen (z.B. Links)
+        for match in matches:
+            # Entferne [[ und ]] von Links und trimme Leerzeichen
+            substances.append(match)
+            # print(match)
+
+    except Exception as e:
+        traceback.print_exc()
+        print(f"Fehler beim Abrufen oder Analysieren der Seite: {e}")
+
+    print(substances)
+    return substances
+
+
 def find_red_links(page):
     """
     Gibt eine Liste aller nicht existierenden, verlinkten Artikel auf der angegebenen Wikipedia-Seite zurück.
@@ -201,7 +240,7 @@ def filter_pages(target_pages_gen, exclusion_pages_gen):
             yield page
 
 
-def process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list):
+def process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list, intermediate_list):
     """
     Analysiert alle Seiten in einer Kategorie und deren Unterkategorien, um Rotlinks zu finden.
 
@@ -242,7 +281,7 @@ def process_category(category_names, exclusion_category_names, site, missing_sub
                 red_links = find_red_links(page)
                 for red_link in red_links:
                     if (red_link not in missing_substances_list):
-                        if (red_link not in ignore_list):
+                        if (red_link not in ignore_list and red_link not in intermediate_list):
                             if red_link not in rotlinks:
                                 rotlinks[red_link] = []
                                 redlink_count = redlink_count + 1
@@ -260,7 +299,7 @@ def process_category(category_names, exclusion_category_names, site, missing_sub
 
 def update_wikipedia_page(site, new_entries, last_page_name):
     page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge"
-    #page_title = "Benutzer:Rjh/Test4"
+    # page_title = "Benutzer:ChemoBot/Tests/Neuzugänge"
     page = pywikibot.Page(site, page_title)
     
     try:
@@ -283,8 +322,9 @@ def update_wikipedia_page(site, new_entries, last_page_name):
         new_text = text.replace(section_content, new_section_content)
         
         if new_text != text:
+            global pages_checked
             page.text = new_text
-            page.save(f'Automatische Aktualisierung des Abschnitts "Rotlinks" (letzte analysierte Seite: {last_page_name})')
+            page.save(f'Automatische Aktualisierung des Abschnitts "Rotlinks" (letzte analysierte Seite: {pages_checked}. {last_page_name})')
             print(f'Seite {page_title} aktualisiert.')
         else:
             print("Keine Änderungen notwendig.")
@@ -347,13 +387,14 @@ if __name__ == "__main__":
     missing_substances_list = get_missing_substances_list(site)
     ignore_list = get_ignore_list(site)
     exclusion_list = get_exclusion_list(site)
+    intermediate_list = get_intermediate_list(site)
 
     # Kategorien und Ausschlüsse
     category_names = ["Kategorie:Chemische Verbindung nach Element", "Kategorie:Chemische Verbindung nach Strukturelement"]
     exclusion_category_names = ["Kategorie:Mineral", "Kategorie:Chemikaliengruppe", "Kategorie:Wirkstoffgruppe"]
 
     # Analyse starten
-    last_page_name= process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list)
+    last_page_name= process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list, intermediate_list)
 
     # Rotlinks speichern
     update_wikipedia_page(site, rotlinks, last_page_name)

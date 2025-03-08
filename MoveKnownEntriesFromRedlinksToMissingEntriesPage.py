@@ -74,6 +74,7 @@ def analyze_redlinks_section(site, section_title):
     """
     redlink_list = []
     exclude_site_name_list = []
+    intermediate_list = []
         
     page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge"
     # page_title = "Benutzer:ChemoBot/Tests/Neuzugänge"
@@ -113,11 +114,13 @@ def analyze_redlinks_section(site, section_title):
                     section_short_name = match.group(4).strip()  # Text nach dem letzten ">>"
                     
                     if (not section_short_name == ""):
-                        if not (section_short_name == "off" or section_short_name == "irr" or section_short_name == "ir2"):
+                        if not (section_short_name == "off" or section_short_name == "irr" or section_short_name == "ir2" or section_short_name == "zzz"):
                             # print("Name:", name, " cas_wd:", cas_wd, " Abkürzung:", section_short_name)
                             redlink_list.append([section_short_name, format_missing_page_string(name, cas_wd)])
                         elif (section_short_name == "ir2"):
                             exclude_site_name_list.append(site_name + " - ")
+                        elif (section_short_name == "zzz"):
+                            intermediate_list.append(line)
                         else:
                             redlink_list.append([section_short_name, name + " - "])
 
@@ -125,7 +128,7 @@ def analyze_redlinks_section(site, section_title):
         print(f"Fehler beim Analysieren der Seite: {e}")
         
     # print(redlink_list)
-    return {"redlink_list":redlink_list, "exclude_site_name_list":exclude_site_name_list}
+    return {"redlink_list":redlink_list, "exclude_site_name_list":exclude_site_name_list, "intermediate_list": intermediate_list}
          
 
 def add_entry_to_section(text, section_title, new_entry):
@@ -166,7 +169,7 @@ def add_entry_to_section(text, section_title, new_entry):
     else:
         return text
 
-def save_missing_articels_page(page, updated_text, text):
+def save_missing_articles_page(page, updated_text, text):
     # Änderungen speichern
     if updated_text != text:
         page.text = updated_text
@@ -228,6 +231,62 @@ def add_entry_to_exclusion_list(text, section_title, new_entry):
     except Exception as e:
         print(f"Fehler beim Bearbeiten der Seite: {e}")
         return text
+
+
+def add_entry_to_intermediate_list(text, section_title, new_entry):
+    """
+    Fügt einen neuen Eintrag alphabetisch sortiert in den Abschnitt "Rotlinks" ein.
+
+    Args:
+        section_title (str): Der Titel des Abschnitts, in den der Eintrag eingefügt werden soll.
+        new_entry (str): Der neue Eintrag, der hinzugefügt werden soll.
+    """
+
+    try:
+        # Finde den Abschnitt anhand des Titels
+        section_pattern = rf'(==+\s*{re.escape(section_title)}\s*==+)(.*?)(?=\n==|\Z)'
+        match = re.search(section_pattern, text, re.DOTALL)
+
+        if not match:
+            print(f"Abschnitt mit Titel '{section_title}' nicht gefunden.")
+            return text
+
+        # Abschnitt und Inhalt extrahieren
+        section_header, section_content = match.groups()
+
+        # Zeilen in der Ausschlussliste filtern
+        lines = section_content.split("\n")
+        exclusion_list = [line for line in lines if line.startswith("* ")]
+
+        # print("new_entry = " ,new_entry, " ,Exclusionlist = ", exclusion_list, "\n\n")
+
+        # Neuen Eintrag alphabetisch einfügen
+        if new_entry in exclusion_list or new_entry.strip() in exclusion_list :
+            # print(f"Der Eintrag '{new_entry}' ist bereits in der Ausschlussliste.")
+            return text
+        else:
+            # print(f"Der Eintrag '{new_entry}' ist noch nicht in der Ausschlussliste {exclusion_list}.")            
+
+            exclusion_list.append(f"{new_entry}")
+            exclusion_list = sorted(exclusion_list, key=lambda x: x.lower())
+
+            # Aktualisierter Abschnittstext
+            updated_section_content = "\n".join(exclusion_list)
+
+            # Aktualisierten Abschnitt im Seiteninhalt ersetzen
+            updated_text = re.sub(
+                section_pattern,
+                rf'\1\n{updated_section_content}\n',
+                text,
+                flags=re.DOTALL
+            )
+            
+            return updated_text
+        
+    except Exception as e:
+        print(f"Fehler beim Bearbeiten der Seite: {e}")
+        return text
+
 
 def save_exclusion_list(updated_text, text, page):
     """
@@ -299,6 +358,19 @@ if __name__ == "__main__":
 
     updated_irrelevant_list_text = irrelevant_list_page.text
 
+    print("Load intermediate links list pages ...")
+
+    # Seitentitel Zwischenlagerliste für Seiten deren relevanz nicht bekannt ist (eventuell Namensfehler oder nicht existent)
+    intermediate_list_page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge/Zwischenlager"
+    # intermediate_list_page_title = "Benutzer:ChemoBot/Tests/Neuzugänge/Zwischenlager"
+
+    intermediate_list_page = pywikibot.Page(site, intermediate_list_page_title)
+    if not intermediate_list_page.exists():
+       print(f"Die Seite {intermediate_list_page_title} existiert nicht.")
+       exit(0)
+
+    updated_intermediate_list_text = intermediate_list_page.text
+
     print("Load exclusion site list pages ...")
 
     # Seitentitel Ausschlussliste für auszuschließende Seiten wie Linksammlungen
@@ -317,6 +389,7 @@ if __name__ == "__main__":
     result_red = analyze_redlinks_section(site, "Rotlinks") 
     result_act = analyze_redlinks_section(site, "Substanzinfo")
     redlink_list = result_red["redlink_list"] + result_act["redlink_list"]
+    intermediate_list = result_red["intermediate_list"] + result_act["intermediate_list"]
 
     print("Analyze redlinks ...")
 
@@ -340,6 +413,10 @@ if __name__ == "__main__":
     for exclude_site_name in exclude_site_name_list:
         # print(f"exclude_site_name = {exclude_site_name}")
         updated_exclusion_list_text = add_entry_to_exclusion_list(updated_exclusion_list_text, "Ausschlussliste", exclude_site_name)
+
+    for intermediate_entry in intermediate_list:
+        # print(f"intermediate_entry = {intermediate_entry}")
+        updated_intermediate_list_text = add_entry_to_intermediate_list(updated_intermediate_list_text, "Rotlinks", intermediate_entry)
  
     # print("Show diff ...")
     # print(missing_pages_page.text == updated_missing_pages_text)
@@ -353,8 +430,9 @@ if __name__ == "__main__":
     # diff = difflib.unified_diff(irrelevant_list_page.text.splitlines(), updated_irrelevant_list_text.splitlines(), lineterm='')
     # print("\n".join(diff))
 
-    save_missing_articels_page(missing_pages_page, updated_missing_pages_text, missing_pages_page.text)
+    save_missing_articles_page(missing_pages_page, updated_missing_pages_text, missing_pages_page.text)
     save_exclusion_list(updated_ignore_list_text, ignore_list_page.text, ignore_list_page)
     save_exclusion_list(updated_irrelevant_list_text, irrelevant_list_page.text, irrelevant_list_page)
     save_exclusion_list(updated_exclusion_list_text, exclusion_list_page.text, exclusion_list_page)
+    save_exclusion_list(updated_intermediate_list_text, intermediate_list_page.text, intermediate_list_page)
     

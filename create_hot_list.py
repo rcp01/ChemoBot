@@ -86,10 +86,22 @@ def update_wikipedia_page(site, results):
     for wikidata, data in results.items():
         german_text = f"(dabei auch anderer Artikel [[{data["german_name"]}]] in Deutsch) " if data["has_german"] else ""
         cas_nr = data["cas_nr"]
+        langs_count = data['langs']
+        wikidata_text = ""        
+        if langs_count == -1: 
+            if len(cas_nr)>1:
+                wikidata_text = f"und '''kein [//tools.wmflabs.org/wikidata-todo/resolver.php?prop=231&value={cas_nr} Wikidata]-Eintrag''' vorhanden"
+            else:
+                wikidata_text = f"und '''kein [[:d:{wikidata}|Wikidata-Eintrag]]''' vorhanden"
+        else:
+            wikidata_text = f"und in [[:d:{wikidata}|{langs_count}]] anderen Sprachen {german_text}vorhanden"
+        
+        if len(cas_nr)>1:
+            cas_nr = "{{CASRN|"+cas_nr+"}}"
         if len(data["substances"]) == 1:
             substance = data["substances"][0]
             links = data['links'][0]
-            new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf und in [[:d:{wikidata}|{data['langs']}]] anderen Sprachen {german_text}vorhanden für [[{substance}]], CAS:{cas_nr}\n"
+            new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf {wikidata_text} für [[{substance}]], CAS:{cas_nr}\n"
         else:
             # print(data["substances"])
             substance_list = ""
@@ -101,7 +113,7 @@ def update_wikipedia_page(site, results):
                 linklist_list += f"[[Spezial:Linkliste/{s}|{links}]]+"
                 count += 1
             
-            new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) auf und in [[:d:{wikidata}|{data['langs']}]] anderen Sprachen {german_text}vorhanden für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"
+            new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) auf {wikidata_text} für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"
 
     page.text = new_content
     #print(new_content)
@@ -180,7 +192,7 @@ def main():
             results[wikidata_id]["langs"] = max(results[wikidata_id]["langs"], language_count)
             results[wikidata_id]["cas_nr"] = cas_nr
         
-        #if (count >= 500):
+        #if (count >= 100):
         #    break
     
     print("Sorting results ...")

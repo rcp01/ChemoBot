@@ -76,6 +76,7 @@ def count_wikipedia_languages(site, item):
 
 def update_wikipedia_page(site, results):
     page = pywikibot.Page(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Zusatzinformationen")
+    #page = pywikibot.Page(site, "Benutzer:ChemoBot/Tests/Zusatzinformationen")
     content = page.text
     
     # Trenne den vorhandenen Inhalt in den Teil vor "Zusatzinformationen" und den Rest
@@ -120,7 +121,7 @@ def update_wikipedia_page(site, results):
 
     page.text = new_content
     #print(new_content)
-    page.save(summary="Automatische Aktualisierung der Zusatzinformationen")
+    page.save(summary=f"Automatische Aktualisierung der Zusatzinformationen für {len(results)} Seiten")
 
 
 def human_readable_time_difference(start_time, end_time):
@@ -195,11 +196,11 @@ def main():
             results[wikidata_id]["langs"] = max(results[wikidata_id]["langs"], language_count)
             results[wikidata_id]["cas_nr"] = cas_nr
         
-        #if (count >= 100):
+        # if (count >= 100):
         #    break
     
     print("Sorting results ...")
-    sorted_results = dict(sorted(results.items(), key=lambda x: (not x[1]["has_german"], -sum(x[1]["links"]), -x[1]["langs"])))
+    sorted_results = dict(sorted(results.items(), key=lambda x: (not x[1]["has_german"], x[1]["langs"]!=-1, -sum(x[1]["links"]), -x[1]["langs"])))
 
     update_wikipedia_page(site, sorted_results)
 

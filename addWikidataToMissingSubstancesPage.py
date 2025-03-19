@@ -28,9 +28,11 @@ for match in pattern.finditer(text):
         fehlende_wd_einträge.append(cas_nummer)
 
 # Ergebnisse ausgeben
-print("Substanzen ohne Wikidata-Eintrag:")
-for cas in fehlende_wd_einträge:
-    print(f"{cas}")
+print(f"Prüfe Substanzen ohne Wikidata-Eintrag: {len(fehlende_wd_einträge)}")
+changed = 0
+
+for i, cas in enumerate(fehlende_wd_einträge, 1):  # Counter hinzufügen
+    print(f"{i}/{len(fehlende_wd_einträge)}: Check Wikidate entry for CAS {cas}")  # Ausgabe mit laufender Nummer
     url = f"https://tools.wmflabs.org/wikidata-todo/resolver.php?prop=231&value={cas}"  # Beispiel für eine umleitende URL
     response = requests.get(url, allow_redirects=True)
 
@@ -39,7 +41,9 @@ for cas in fehlende_wd_einträge:
 
     if match:
         q_number = match.group(1)  # Die gefundene Nummer
-        print("Gefundene Q-Nummer:", q_number)
+        print("Gefundene Q-Nummer:", q_number, " für CAS ", cas)
         page.text = page.text.replace(f"({cas})", f"({cas}, [[:d:{q_number}|wd]])")
+        changed += 1
 
-page.save("update wikidata entries")
+page.save(f"Ergänze fehlende Wikidata Einträge anhand suche nach CAS Nummer für {changed} von {len(fehlende_wd_einträge)} Einträgen ohne Wikidata")
+print(f"{changed} von {len(fehlende_wd_einträge)} Einträgen ohne Wikidata ergänzt")

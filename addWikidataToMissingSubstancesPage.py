@@ -37,7 +37,7 @@ for i, cas in enumerate(fehlende_wd_einträge, 1):  # Counter hinzufügen
     response = requests.get(url, allow_redirects=True)
 
     # Regulärer Ausdruck zum Extrahieren der Nummer nach "Q"
-    match = re.search(r"url=https://www.wikidata.org/wiki/(Q\d+)", response.text)
+    match = re.search(r"//www.wikidata.org/wiki/(Q\d+)", response.text)
 
     if match:
         q_number = match.group(1)  # Die gefundene Nummer

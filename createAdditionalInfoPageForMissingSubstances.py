@@ -136,6 +136,7 @@ def update_wikipedia_page(site, results):
             
             new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) auf {wikidata_text} für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"
         print(f"{counter}/{len(results.items())} {data["substances"][0]}")
+        counter += 1
 
     page.text = new_content
     #print(new_content)

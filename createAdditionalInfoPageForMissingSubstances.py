@@ -36,6 +36,8 @@ def getWikidataItem(site, wikidata_id):
     try:
         repo = site.data_repository()  # Daten-Repository für Wikidata
         item = pywikibot.ItemPage(repo, wikidata_id)  # Wikidata-Item laden
+        while item.isRedirectPage(): # eine oder mehrere Redirects abfangen
+            item = pywikibot.ItemPage(repo, item.getRedirectTarget().title())
         item.get()  # Daten abrufen
         return item
     except Exception as e:
@@ -79,13 +81,20 @@ def update_wikipedia_page(site, results):
     #page = pywikibot.Page(site, "Benutzer:ChemoBot/Tests/Zusatzinformationen")
     content = page.text
     
+    counter = 0
+    
     # Trenne den vorhandenen Inhalt in den Teil vor "Zusatzinformationen" und den Rest
     match = re.search(r'(^.*?)(==\s*Zusatzinformationen\s*==)', content, re.DOTALL)
     pre_text = match.group(1).strip() if match else ""
     new_content = f"{pre_text}\n\n== Zusatzinformationen ==\n"
-
     for wikidata, data in results.items():
-        german_text = f"(dabei auch anderer Artikel [[{data["german_name"]}]] in Deutsch) " if data["has_german"] else ""
+        german_text = ""
+        if data["has_german"]:
+            page2 = pywikibot.Page(site, data["german_name"])
+            if page2.isRedirectPage():
+                german_text = f"(dabei auch anderer Artikel [[{data["german_name"]}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]]) in Deutsch) "
+            else:
+                german_text = f"(dabei auch anderer Artikel [[{data["german_name"]}]] in Deutsch) "  
         cas_nr = data["cas_nr"]
         langs_count = data['langs']
         wikidata_text = ""        
@@ -105,19 +114,28 @@ def update_wikipedia_page(site, results):
         if len(data["substances"]) == 1:
             substance = data["substances"][0]
             links = data['links'][0]
-            new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf {wikidata_text} für [[{substance}]], CAS:{cas_nr}\n"
+            page2 = pywikibot.Page(site, substance)
+            if page2.exists() and page2.isRedirectPage():
+                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf {wikidata_text} für [[{substance}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]]), CAS:{cas_nr}\n"            
+            else:            
+                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf {wikidata_text} für [[{substance}]], CAS:{cas_nr}\n"
         else:
             # print(data["substances"])
             substance_list = ""
             linklist_list = ""
             count = 0
             for s in data["substances"]:
-                substance_list += f"[[{s}]]/"
+                page2 = pywikibot.Page(site, s)
+                if page2.exists() and page2.isRedirectPage():
+                    substance_list += f"[[{s}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]])/"                
+                else:
+                    substance_list += f"[[{s}]]/"
                 links = f"{data['links'][count]}"
                 linklist_list += f"[[Spezial:Linkliste/{s}|{links}]]+"
                 count += 1
             
             new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) auf {wikidata_text} für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"
+        print(f"{counter}/{len(results.items())} {data["substances"][0]}")
 
     page.text = new_content
     #print(new_content)
@@ -202,6 +220,7 @@ def main():
     print("Sorting results ...")
     sorted_results = dict(sorted(results.items(), key=lambda x: (not x[1]["has_german"], x[1]["langs"]!=-1, -sum(x[1]["links"]), -x[1]["langs"])))
 
+    print("Update page ...")
     update_wikipedia_page(site, sorted_results)
 
     print("\nLaufzeit: ",human_readable_time_difference(zeitanfang, time.time()))

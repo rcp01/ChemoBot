@@ -77,7 +77,7 @@ def analyze_redlinks_section(site, section_title):
     intermediate_list = []
         
     page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge"
-    # page_title = "Benutzer:ChemoBot/Tests/Neuzugänge"
+    #page_title = "Benutzer:ChemoBot/Tests/Neuzugänge"
 
     try:
         # Lade die Seite
@@ -123,6 +123,12 @@ def analyze_redlinks_section(site, section_title):
                             intermediate_list.append(line)
                         else:
                             redlink_list.append([section_short_name, name + " - "])
+                    else:
+                        filtered_lines.append(line)
+                else:
+                    filtered_lines.append(line)
+            page.text = text.replace(section_content, "\n" + "\n".join(filtered_lines))
+            page.save(summary=f"Lösche verschobene Einträge aus der Liste.")
 
     except Exception as e:
         print(f"Fehler beim Analysieren der Seite: {e}")
@@ -336,7 +342,7 @@ if __name__ == "__main__":
 
     # Seitentitel Ausschlussliste
     ignore_list_page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Ausschlussliste"
-    # ignore_list_page_title = "Benutzer:ChemoBot/Tests/Ausschlussliste"
+    #ignore_list_page_title = "Benutzer:ChemoBot/Tests/Ausschlussliste"
 
     ignore_list_page = pywikibot.Page(site, ignore_list_page_title)
     if not ignore_list_page.exists():

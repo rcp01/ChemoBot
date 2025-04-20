@@ -286,9 +286,11 @@ def process_category(category_names, exclusion_category_names, site, missing_sub
                             if red_link not in rotlinks:
                                 rotlinks[red_link] = []
                                 redlink_count = redlink_count + 1
-                            rotlinks[red_link].append("[[" + page.title() + "]]")
-                            if (redlink_count >= 500):
-                                return page.title()
+                            title = "[[" + page.title() + "]]"
+                            if title not in rotlinks[red_link]:
+                                rotlinks[red_link].append(title)
+                            #if (redlink_count >= 500):
+                            #    return page.title()
                         # else:
                         #     print(red_link + " bereits auf Ausschlussseite")
                     # else:
@@ -470,7 +472,7 @@ def search_cas_number(chemical_name):
     print(f"\"{chemical_name_org}\" -> \"{chemical_name}\" : None")
     return ""
 
-def update_wikipedia_page(site, new_entries, last_page_name):
+def update_wikipedia_page(site, rotlinks, last_page_name):
     page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge"
     #page_title = "Benutzer:ChemoBot/Tests/Neuzugänge"
     page = pywikibot.Page(site, page_title)
@@ -518,6 +520,20 @@ def update_wikipedia_page(site, new_entries, last_page_name):
             print("Keine Änderungen notwendig.")
     except Exception as e:
         traceback.print_exc()
+
+def save_red_links_to_file(filename, rotlinks, last_page_name):
+    """
+    Speichert die Liste der Rotlinks in eine Datei.
+ 
+    Args:
+        filename: Der Name der Datei.
+        rotlinks: Das Dictionary der Rotlinks.
+    """ 
+    with open(filename, "w", encoding="utf-8") as file: 
+       for red_link in rotlinks:
+            pages = ", ".join(sorted(rotlinks[red_link]))
+            file.write(f"* [[{red_link}]] >> {pages} >>  >>\n")
+    print(f"Rotlinks wurden in '{filename}' gespeichert. (letzte analysierte Seite: {pages_checked}. {last_page_name})") 
 
 
 def human_readable_time_difference(start_time, end_time):
@@ -568,6 +584,8 @@ if __name__ == "__main__":
 
     # Rotlinks speichern
     update_wikipedia_page(site, rotlinks, last_page_name)
+
+    #save_red_links_to_file("rotlinks.txt", rotlinks, last_page_name)
 
     # Zusammenfassung
     print(f"\nAnzahl geprüfter Seiten: {pages_checked}")

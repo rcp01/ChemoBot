@@ -114,11 +114,12 @@ def update_wikipedia_page(site, results):
         if len(data["substances"]) == 1:
             substance = data["substances"][0]
             links = data['links'][0]
+            searchcount = data['searchcount'][0]
             page2 = pywikibot.Page(site, substance)
             if page2.exists() and page2.isRedirectPage():
-                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf {wikidata_text} für [[{substance}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]]), CAS:{cas_nr}\n"            
+                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]]), CAS:{cas_nr}\n"            
             else:            
-                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf {wikidata_text} für [[{substance}]], CAS:{cas_nr}\n"
+                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]], CAS:{cas_nr}\n"
         else:
             # print(data["substances"])
             substance_list = ""
@@ -134,7 +135,7 @@ def update_wikipedia_page(site, results):
                 linklist_list += f"[[Spezial:Linkliste/{s}|{links}]]+"
                 count += 1
             
-            new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) auf {wikidata_text} für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"
+            new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) auf und [https://de.wikipedia.org/w/index.php?search=%22{data["substances"][0].replace(" ", "%20")}%22&ns0=1 {sum(data['searchcount'])}] Suchtreffer {wikidata_text} für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"
         print(f"{counter}/{len(results.items())} {data["substances"][0]}")
         counter += 1
 
@@ -172,6 +173,11 @@ def human_readable_time_difference(start_time, end_time):
     
     return ', '.join(result)
 
+def getSearchCount(site, name):
+    results = list(site.search("\""+name+"\"", total=500, namespaces=[0]))
+    #print(f"Treffer für '{name}' im Artikelnamensraum: {len(results)}")
+    return len(results)
+
 def main():
     zeitanfang = time.time()	
     print("Start ...")
@@ -182,16 +188,18 @@ def main():
     print("Get missing substances ...")
     substances = get_missing_substances(site, page_title)
     
-    results = defaultdict(lambda: {"substances": [], "links": [], "has_german": False, "german_name": "", "langs": -1, "cas_nr" : ""})
+    results = defaultdict(lambda: {"substances": [], "links": [], "searchcount": [], "has_german": False, "german_name": "", "langs": -1, "cas_nr" : ""})
     
     count = 0
     print("Get information for pages ...")
     for count, (name, wikidata_id, cas_nr) in enumerate(substances, start=1):
         
+        searchcount = getSearchCount(site, name)
+        
         if wikidata_id == unknown_wikidata:
             incoming_links = count_incoming_links(site, name)
             
-            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Deutscher Artikel: {False}, Sprachen: {-1}, cas: {cas_nr}")
+            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Suchtreffer: {searchcount}, Deutscher Artikel: {False}, Sprachen: {-1}, cas: {cas_nr}")
             
             results[name]["substances"].append(name)
             results[name]["links"].append(incoming_links)
@@ -199,6 +207,7 @@ def main():
             results[name]["german_name"] = ""
             results[name]["langs"] = -1
             results[name]["cas_nr"] = cas_nr
+            results[name]["searchcount"].append(searchcount)
         
         else:
             incoming_links = count_incoming_links(site, name)
@@ -206,7 +215,7 @@ def main():
             result = has_german_wikipedia_link(site, item)
             language_count = count_wikipedia_languages(site, item)
             
-            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}, cas: {cas_nr}")
+            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Suchtreffer: {searchcount}, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}, cas: {cas_nr}")
             
             results[wikidata_id]["substances"].append(name)
             results[wikidata_id]["links"].append(incoming_links)
@@ -214,12 +223,13 @@ def main():
             results[wikidata_id]["german_name"] = result["german_page_name"]
             results[wikidata_id]["langs"] = max(results[wikidata_id]["langs"], language_count)
             results[wikidata_id]["cas_nr"] = cas_nr
+            results[wikidata_id]["searchcount"].append(searchcount)
         
         # if (count >= 100):
         #    break
     
     print("Sorting results ...")
-    sorted_results = dict(sorted(results.items(), key=lambda x: (not x[1]["has_german"], x[1]["langs"]!=-1, -sum(x[1]["links"]), -x[1]["langs"])))
+    sorted_results = dict(sorted(results.items(), key=lambda x: (not x[1]["has_german"], x[1]["langs"]!=-1, -sum(x[1]["links"]), -x[1]["langs"], -sum(x[1]["searchcount"]))))
 
     print("Update page ...")
     update_wikipedia_page(site, sorted_results)

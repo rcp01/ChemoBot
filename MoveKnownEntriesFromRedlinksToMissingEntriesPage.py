@@ -128,7 +128,8 @@ def analyze_redlinks_section(site, section_title):
                 else:
                     filtered_lines.append(line)
             page.text = text.replace(section_content, "\n" + "\n".join(filtered_lines))
-            page.save(summary=f"Lösche verschobene Einträge aus der Liste.")
+            if (text != page.text):
+                page.save(summary=f"Lösche verschobene Einträge aus der Liste.")
 
     except Exception as e:
         print(f"Fehler beim Analysieren der Seite: {e}")

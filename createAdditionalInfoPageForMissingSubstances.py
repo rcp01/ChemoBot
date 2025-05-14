@@ -81,7 +81,7 @@ def update_wikipedia_page(site, results):
     #page = pywikibot.Page(site, "Benutzer:ChemoBot/Tests/Zusatzinformationen")
     content = page.text
     
-    counter = 0
+    counter = 1
     
     # Trenne den vorhandenen Inhalt in den Teil vor "Zusatzinformationen" und den Rest
     match = re.search(r'(^.*?)(==\s*Zusatzinformationen\s*==)', content, re.DOTALL)
@@ -229,7 +229,14 @@ def main():
         #    break
     
     print("Sorting results ...")
-    sorted_results = dict(sorted(results.items(), key=lambda x: (not x[1]["has_german"], x[1]["langs"]!=-1, -sum(x[1]["links"]), -x[1]["langs"], -sum(x[1]["searchcount"]))))
+    sorted_results = dict(sorted(results.items(), key=lambda x: (
+        not x[1]["has_german"], 
+        x[1]["langs"] != -1, 
+        -sum(x[1]["links"]), 
+        -x[1]["langs"], 
+        -sum(x[1]["searchcount"]), 
+        x[1]["substances"][0].lower() if x[1]["substances"] else ""
+    )))
 
     print("Update page ...")
     update_wikipedia_page(site, sorted_results)

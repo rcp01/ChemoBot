@@ -449,8 +449,8 @@ if __name__ == "__main__":
     # diff = difflib.unified_diff(irrelevant_list_page.text.splitlines(), updated_irrelevant_list_text.splitlines(), lineterm='')
     # print("\n".join(diff))
 
-    #save_missing_articles_page(missing_pages_page, updated_missing_pages_text, missing_pages_page.text)
-    #save_exclusion_list(updated_ignore_list_text, ignore_list_page.text, ignore_list_page)
-    #save_exclusion_list(updated_irrelevant_list_text, irrelevant_list_page.text, irrelevant_list_page)
-    #save_exclusion_list(updated_exclusion_list_text, exclusion_list_page.text, exclusion_list_page)
+    save_missing_articles_page(missing_pages_page, updated_missing_pages_text, missing_pages_page.text)
+    save_exclusion_list(updated_ignore_list_text, ignore_list_page.text, ignore_list_page)
+    save_exclusion_list(updated_irrelevant_list_text, irrelevant_list_page.text, irrelevant_list_page)
+    save_exclusion_list(updated_exclusion_list_text, exclusion_list_page.text, exclusion_list_page)
     

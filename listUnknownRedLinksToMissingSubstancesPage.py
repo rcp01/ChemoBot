@@ -514,7 +514,7 @@ def update_wikipedia_page(site, rotlinks, last_page_name):
         if new_text != text:
             global pages_checked
             page.text = new_text
-            page.save(f'Automatische Aktualisierung des Abschnitts "Rotlinks" (letzte analysierte Seite: {pages_checked}. {last_page_name})')
+            page.save(f'Automatische Aktualisierung des Abschnitts "Rotlinks" (letzte analysierte Seite: {pages_checked}. {last_page_name}, Anzahl Rotlinks={len(rotlinks)})')
             print(f'Seite {page_title} aktualisiert.')
         else:
             print("Keine Änderungen notwendig.")

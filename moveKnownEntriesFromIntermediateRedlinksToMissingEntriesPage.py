@@ -63,7 +63,28 @@ def format_missing_page_string(name, cas_wd):
     
     return name + " (" + cas_wd + ") -"
 
-def analyze_redlinks_section(site, section_title, abb_list):
+def check_if_redlink_exists(site, target_title):
+    target_page = pywikibot.Page(site, target_title)
+
+    # check if page exists
+    if target_page.exists():
+        print(f"Die Seite '{target_title}' existiert bereits.")
+        return False
+    else:
+        # Wenn nicht: nach Links auf diese Seite im Artikelnamensraum suchen
+        backlinks = target_page.backlinks(namespaces=[0], filter_redirects=False)
+        backlinks_list = list(backlinks)
+
+        if backlinks_list:
+            print(f"Die Seite '{target_title}' existiert nicht, wird aber auf folgenden Seiten verlinkt:")
+            for page in backlinks_list:
+                print(f"- {page.title()}")
+            return True
+        else:
+            print(f"Die Seite '{target_title}' existiert nicht und wird im Artikelnamensraum nicht verlinkt.")
+            return False
+
+def analyze_intermediate_redlinks_section(site, section_title, abb_list):
     """
     Analysiert den Abschnitt "Rotlinks" einer Wikipedia-Seite und filtert Zeilen basierend auf bestimmten Kriterien.
 
@@ -74,14 +95,13 @@ def analyze_redlinks_section(site, section_title, abb_list):
     """
     redlink_list = []
     exclude_site_name_list = []
-    intermediate_list = []
         
-    page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge"
-    #page_title = "Benutzer:ChemoBot/Tests/Neuzugänge"
+    intermediate_list_page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge/Zwischenlager"
+    # intermediate_list_page_title = "Benutzer:ChemoBot/Tests/Neuzugänge/Zwischenlager"
 
     try:
         # Lade die Seite
-        page = pywikibot.Page(site, page_title)
+        page = pywikibot.Page(site, intermediate_list_page_title)
         # Ursprünglichen Seiteninhalt laden
         text = page.text
 
@@ -124,11 +144,18 @@ def analyze_redlinks_section(site, section_title, abb_list):
                         elif (section_short_name == "ir2"):
                             exclude_site_name_list.append(site_name + " - ")
                         elif (section_short_name == "zzz"):
-                            intermediate_list.append(line)
+                            # same as before, therefore ignore line
+                            if check_if_redlink_exists(site, name.replace("[[", "").replace("]]", "")):
+                                filtered_lines.append(line)
+                            else:
+                                print(f"Rotlink auf {name} existiert nicht mehr -> wird aus Liste entfernt.")
                         else:
                             redlink_list.append([section_short_name, name + " - "])
                     else:
-                        filtered_lines.append(line)
+                        if check_if_redlink_exists(site, name.replace("[[", "").replace("]]", "")):
+                            filtered_lines.append(line)
+                        else:
+                            print(f"Rotlink auf {name} existiert nicht mehr -> wird aus Liste entfernt.")
                 else:
                     filtered_lines.append(line)
             page.text = text.replace(section_content, "\n" + "\n".join(filtered_lines))
@@ -139,7 +166,7 @@ def analyze_redlinks_section(site, section_title, abb_list):
         print(f"Fehler beim Analysieren der Seite: {e}")
         
     # print(redlink_list)
-    return {"redlink_list":redlink_list, "exclude_site_name_list":exclude_site_name_list, "intermediate_list": intermediate_list}
+    return {"redlink_list":redlink_list, "exclude_site_name_list":exclude_site_name_list}
          
 
 def add_entry_to_section(text, section_title, new_entry):
@@ -369,19 +396,6 @@ if __name__ == "__main__":
 
     updated_irrelevant_list_text = irrelevant_list_page.text
 
-    print("Load intermediate links list pages ...")
-
-    # Seitentitel Zwischenlagerliste für Seiten deren relevanz nicht bekannt ist (eventuell Namensfehler oder nicht existent)
-    intermediate_list_page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge/Zwischenlager"
-    # intermediate_list_page_title = "Benutzer:ChemoBot/Tests/Neuzugänge/Zwischenlager"
-
-    intermediate_list_page = pywikibot.Page(site, intermediate_list_page_title)
-    if not intermediate_list_page.exists():
-       print(f"Die Seite {intermediate_list_page_title} existiert nicht.")
-       exit(0)
-
-    updated_intermediate_list_text = intermediate_list_page.text
-
     print("Load exclusion site list pages ...")
 
     # Seitentitel Ausschlussliste für auszuschließende Seiten wie Linksammlungen
@@ -397,10 +411,8 @@ if __name__ == "__main__":
 
     print("Load redlinks ...")
 
-    result_red = analyze_redlinks_section(site, "Rotlinks", abb_list) 
-    result_act = analyze_redlinks_section(site, "Substanzinfo", abb_list)
-    redlink_list = result_red["redlink_list"] + result_act["redlink_list"]
-    intermediate_list = result_red["intermediate_list"] + result_act["intermediate_list"]
+    result_red = analyze_intermediate_redlinks_section(site, "Rotlinks", abb_list) 
+    redlink_list = result_red["redlink_list"]
 
     print("Analyze redlinks ...")
 
@@ -419,15 +431,11 @@ if __name__ == "__main__":
                 # print("\"" + new_entry + "\" " + redlink[0] + "\n")
                 updated_irrelevant_list_text = add_entry_to_exclusion_list(updated_irrelevant_list_text, "Ausschlussliste", new_entry)
     
-    exclude_site_name_list = result_red["exclude_site_name_list"] + result_act["exclude_site_name_list"]
+    exclude_site_name_list = result_red["exclude_site_name_list"]
     # print("exclude_site_name_list=", exclude_site_name_list)
     for exclude_site_name in exclude_site_name_list:
         # print(f"exclude_site_name = {exclude_site_name}")
         updated_exclusion_list_text = add_entry_to_exclusion_list(updated_exclusion_list_text, "Ausschlussliste", exclude_site_name)
-
-    for intermediate_entry in intermediate_list:
-        # print(f"intermediate_entry = {intermediate_entry}")
-        updated_intermediate_list_text = add_entry_to_intermediate_list(updated_intermediate_list_text, "Rotlinks", intermediate_entry)
  
     # print("Show diff ...")
     # print(missing_pages_page.text == updated_missing_pages_text)
@@ -441,9 +449,8 @@ if __name__ == "__main__":
     # diff = difflib.unified_diff(irrelevant_list_page.text.splitlines(), updated_irrelevant_list_text.splitlines(), lineterm='')
     # print("\n".join(diff))
 
-    save_missing_articles_page(missing_pages_page, updated_missing_pages_text, missing_pages_page.text)
-    save_exclusion_list(updated_ignore_list_text, ignore_list_page.text, ignore_list_page)
-    save_exclusion_list(updated_irrelevant_list_text, irrelevant_list_page.text, irrelevant_list_page)
-    save_exclusion_list(updated_exclusion_list_text, exclusion_list_page.text, exclusion_list_page)
-    save_exclusion_list(updated_intermediate_list_text, intermediate_list_page.text, intermediate_list_page)
+    #save_missing_articles_page(missing_pages_page, updated_missing_pages_text, missing_pages_page.text)
+    #save_exclusion_list(updated_ignore_list_text, ignore_list_page.text, ignore_list_page)
+    #save_exclusion_list(updated_irrelevant_list_text, irrelevant_list_page.text, irrelevant_list_page)
+    #save_exclusion_list(updated_exclusion_list_text, exclusion_list_page.text, exclusion_list_page)
     

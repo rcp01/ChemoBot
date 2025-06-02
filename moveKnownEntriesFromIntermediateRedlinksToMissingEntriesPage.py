@@ -133,13 +133,13 @@ def analyze_intermediate_redlinks_section(site, section_title, abb_list):
                     cas_wd = match.group(3).strip()  # Text zwischen dem zweiten und dem dritten ">>"
                     section_short_name = match.group(4).strip()  # Text nach dem letzten ">>"
                     
-                    if (not (section_short_name == "") and not (cas_wd == "")):
+                    if (section_short_name != ""):
                         if not (section_short_name == "off" or section_short_name == "irr" or section_short_name == "ir2" or section_short_name == "zzz"):
                             # print("Name:", name, " cas_wd:", cas_wd, " Abkürzung:", section_short_name)
-                            if (section_short_name in abb_list):
+                            if ((section_short_name in abb_list) and (cas_wd != "")):
                                 redlink_list.append([section_short_name, format_missing_page_string(name, cas_wd)])
                             else:
-                                print(f"Abkürzung für \"{section_short_name}\" existiert nicht -> Zeile wird ignoriert.")
+                                print(f"Abkürzung für \"{section_short_name}\" existiert nicht oder Inhalt leer -> Zeile wird ignoriert.")
                                 filtered_lines.append(line)
                         elif (section_short_name == "ir2"):
                             exclude_site_name_list.append(site_name + " - ")

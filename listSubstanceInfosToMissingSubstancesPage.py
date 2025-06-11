@@ -83,6 +83,7 @@ def get_missing_substances_list(site):
     print(f"Analysiere die Seite '{page_title}'...")
     page = pywikibot.Page(site, page_title)
     substances = []
+    wikidata = []
 
     try:
         # Lade den Seiteninhalt
@@ -90,18 +91,20 @@ def get_missing_substances_list(site):
 
         # Suche nach Listeneinträgen (Elemente in einer wikitext-Liste)
         # Annahme: Die Substanzen stehen in Zeilen, die mit einem "*" beginnen
-        matches = re.findall(r'^\[\[(.*)\]\] \(', content, re.MULTILINE)
+        matches = re.findall(r'^\[\[(.*?)\]\] \(.*?(\[\[:d:.*?\|wd\]\])?\)', content, re.MULTILINE)
 
         # Entferne mögliche Kommentare oder Formatierungen (z.B. Links)
         for match in matches:
-            substances.append(match)
-            # print(match)
+            substances.append(match[0])
+            if match[1]:
+                wikidata.append(match[1].replace("[[:d:", "").replace("|wd]]", ""))
+            # print(match[0], " ", match[1].replace("[[:d:", "").replace("|wd]]", ""))
 
-        return substances
+        return substances, wikidata
     except Exception as e:
         traceback.print_exc()
         print(f"Fehler beim Abrufen oder Analysieren der Seite: {e}")
-        return []
+        return [], []
 
 def get_exclusion_list(site):
     """
@@ -206,7 +209,7 @@ def update_wikipedia_page(site, new_entries):
         
         if new_text != text:
             page.text = new_text
-            page.save("Automatische Aktualisierung des Abschnitts 'Substanzinfo'")
+            page.save("Automatische Aktualisierung des Abschnitts 'Substanzinfo' ({len(new_entries)} Einträge)")
             print("Seite aktualisiert.")
         else:
             print("Keine Änderungen notwendig.")
@@ -226,7 +229,7 @@ def main():
     exclusion_list = get_exclusion_list(site)
 
     # fehlende Substanzen Seite auswerten 
-    missing_substances_list = get_missing_substances_list(site)
+    missing_substances_list, missing_substances_list_wikidata = get_missing_substances_list(site)
 
     # Vorlage, nach der gesucht werden soll
     template_name = "Substanzinfo"
@@ -277,8 +280,9 @@ def main():
                     name = name.replace("<small>", "").replace("</small>", "")
                     name = name.replace("''", "")
                     wikidata = parameters['Wikidata']
+                    # print(wikidata)
                     if name or wikidata:
-                        if (name not in missing_substances_list) and (name not in ignore_list):
+                        if (name not in missing_substances_list) and (name not in ignore_list) and (not wikidata or (wikidata not in missing_substances_list_wikidata)):
                             key = (name, wikidata)
                             data_to_pages[key].append("[[" + page.title() + "]]")
                             if 'CAS' in parameters:
@@ -306,7 +310,7 @@ def main():
 
     update_wikipedia_page(site, new_entries)
 
-    print(f"\npages_checked = {pages_checked}, pages_changed = {pages_changed}")
+    print(f"\npages_checked = {pages_checked}, pages_changed = {pages_changed}, entries = {len(new_entries)}")
     print("\nLaufzeit: " + human_readable_time_difference(zeitanfang, time.time()))
 
 

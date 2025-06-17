@@ -209,7 +209,7 @@ def update_wikipedia_page(site, new_entries):
         
         if new_text != text:
             page.text = new_text
-            page.save("Automatische Aktualisierung des Abschnitts 'Substanzinfo' ({len(new_entries)} Einträge)")
+            page.save(f"Automatische Aktualisierung des Abschnitts 'Substanzinfo' ({len(new_entries)} Einträge)")
             print("Seite aktualisiert.")
         else:
             print("Keine Änderungen notwendig.")

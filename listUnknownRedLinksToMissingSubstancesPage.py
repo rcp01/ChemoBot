@@ -391,7 +391,13 @@ def update_wikipedia_page(site, rotlinks, last_page_name):
             addon = ""
 
             # preserve old cas if it is known
-            match = re.search(fr'\* \[\[{red_link}\]\] >> .*? >>\s*(.*?)\s*>>\s*', section_content, re.DOTALL)
+            try:
+                match = re.search(fr'\* \[\[{red_link}\]\] >> .*? >>\s*(.*?)\s*>>\s*', section_content, re.DOTALL)
+            except Exception as e:
+                print(f"Fehler beim Verarbeiten der Seite {page.title()}: {e}")
+                print(f"red_link = {red_link}")
+                print(f"section_content = {section_content}")
+
             if match and match.group(1).strip() != "":
                 addon = f"{match.group(1).strip()}"
             else:
@@ -404,7 +410,7 @@ def update_wikipedia_page(site, rotlinks, last_page_name):
                         addon = f"{cas}"            
 
             new_section_content += f"* [[{red_link}]] >> {pages} >> {addon} >>\n"
-
+               
         new_text = text.replace(section_content, new_section_content)
         
         if new_text != text:

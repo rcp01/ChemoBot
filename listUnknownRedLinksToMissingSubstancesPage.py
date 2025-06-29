@@ -8,7 +8,7 @@ import time
 import traceback
 import re
 import requests
-from helperfunctions import translate_substance_name_to_englisch
+from helperfunctions import translate_substance_name_to_englisch, human_readable_time_difference
 
 # Globale Variablen
 pages_checked = 0
@@ -436,35 +436,6 @@ def save_red_links_to_file(filename, rotlinks, last_page_name):
             pages = ", ".join(sorted(rotlinks[red_link]))
             file.write(f"* [[{red_link}]] >> {pages} >>  >>\n")
     print(f"Rotlinks wurden in '{filename}' gespeichert. (letzte analysierte Seite: {pages_checked}. {last_page_name})") 
-
-
-def human_readable_time_difference(start_time, end_time):
-    """
-    Gibt die Zeitdifferenz zwischen zwei Zeitpunkten in menschlich lesbarer Form zurück.
-
-    Args:
-        start_time: Startzeit.
-        end_time: Endzeit.
-
-    Returns:
-        String: Zeitdifferenz in lesbarer Form.
-    """
-    delta = end_time - start_time
-    days, seconds = divmod(delta, 3600 * 24)
-    hours, seconds = divmod(seconds, 3600)
-    minutes, seconds = divmod(seconds, 60)
-
-    result = []
-    if days > 0:
-        result.append(f"{int(days)} Tage")
-    if hours > 0:
-        result.append(f"{int(hours)} Stunden")
-    if minutes > 0:
-        result.append(f"{int(minutes)} Minuten")
-    if seconds > 0:
-        result.append(f"{round(seconds, 1)} Sekunden")
-
-    return ', '.join(result)
 
 
 if __name__ == "__main__":

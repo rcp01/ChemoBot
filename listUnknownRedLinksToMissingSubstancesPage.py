@@ -44,6 +44,7 @@ def get_missing_substances_list(site):
             substances.append(match)
             # print(match)
 
+        print(len(substances))
         return substances
     except Exception as e:
         traceback.print_exc()
@@ -84,6 +85,8 @@ def get_ignore_list(site):
         traceback.print_exc()
         print(f"Fehler beim Abrufen oder Analysieren der Seite: {e}")
 
+    print(len(substances))
+
     page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Varianten"
     print(f"Analysiere die Seite '{page_title}'...")
     page = pywikibot.Page(site, page_title)
@@ -106,6 +109,7 @@ def get_ignore_list(site):
         traceback.print_exc()
         print(f"Fehler beim Abrufen oder Analysieren der Seite: {e}")
 
+    print(len(substances))
     return substances
 
 
@@ -143,6 +147,7 @@ def get_exclusion_list(site):
         traceback.print_exc()
         print(f"Fehler beim Abrufen oder Analysieren der Seite: {e}")
 
+    print(len(substances))
     return substances
 
 
@@ -182,6 +187,7 @@ def get_intermediate_list(site):
         print(f"Fehler beim Abrufen oder Analysieren der Seite: {e}")
 
     # print(substances)
+    print(len(substances))
     return substances
 
 
@@ -220,7 +226,14 @@ def get_pages_in_category(category_name, site):
         Ein Generator für Seiten in der Kategorie und deren Unterkategorien.
     """
     category = pywikibot.Category(site, category_name)
-    return pagegenerators.CategorizedPageGenerator(category, recurse=True)
+    ret = pagegenerators.CategorizedPageGenerator(category, recurse=True)
+    
+    count = sum(1 for _ in ret)
+    print(f"Anzahl der Seiten in der Kategorie: {count}")
+    
+    ret = pagegenerators.CategorizedPageGenerator(category, recurse=True)
+
+    return ret
 
 
 def filter_pages(target_pages_gen, exclusion_pages_gen):
@@ -268,6 +281,7 @@ def process_category(category_names, exclusion_category_names, site, missing_sub
     interval = 60  # Intervall in Sekunden
     count = 0
     redlink_count = 0
+    last_page = ""
 
     print("Analyse der Seiten...")
     for page in filtered_pages:
@@ -299,7 +313,8 @@ def process_category(category_names, exclusion_category_names, site, missing_sub
             except Exception as e:
                 traceback.print_exc()
                 print(f"Fehler beim Verarbeiten der Seite {page.title()}: {e}")
-    return page.title()
+        last_page = page.title()
+    return last_page
 
 def search_wikidata_number(cas_number):
     url = f"https://tools.wmflabs.org/wikidata-todo/resolver.php?prop=231&value={cas_number}"  # Beispiel für eine umleitende URL

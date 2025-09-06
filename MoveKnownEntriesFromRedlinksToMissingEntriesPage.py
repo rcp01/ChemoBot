@@ -28,20 +28,24 @@ def load_short_list(site):
         for line in text.strip().split("\n"):
             # Regulärer Ausdruck
             # Beispiel: * arz->[[Wikipedia:Redaktion Chemie/Fehlende Substanzen#Arzneistoffe]]
-            pattern = r"^\* (.*?)->\[\[Wikipedia:Redaktion Chemie/Fehlende Substanzen#(.*?)\]\]$"
+            pattern = r"^\* (.*?)->\[\[(.*?)#(.*?)\]\]$"
 
             # Suche nach Übereinstimmungen
             match = re.match(pattern, line.strip())
 
             if match:
-                short_name = match.group(1).strip()  # Text nach "* " und vor dem ersten ">>"
-                section_name = match.group(2).strip()  # Text nach dem letzten ">>"
-                abb_list[short_name] = section_name;
+                short_name   = match.group(1).strip()  # Text nach "* " und vor dem ersten ">>"
+                page_name    = match.group(2).strip()  # Text nach "* " und vor dem ersten ">>"
+                section_name = match.group(3).strip()  # Text nach dem letzten ">>"
+                abb_list[short_name] = {
+                    "page": page_name,
+                    "section": section_name
+                }
                 
                 # print("shortname:", short_name, " Überschrift:", section_name)
             
         # print(abb_list)
-        
+                
     except Exception as e:
         print(f"Fehler beim Analysieren der Seite: {e}")
     
@@ -331,17 +335,19 @@ if __name__ == "__main__":
 
     print("Load missing pages ...")
 
-    # Seitentitel fehlende Substanzen 
-    missing_pages_page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen"
-    # missing_pages_page_title = "Benutzer:ChemoBot/Tests/Fehlende Substanzen"
+    pages = {}
+    updated_pages = {}
 
-    # Lade den aktuellen Inhalt der fehlende Substanz Seite
-    missing_pages_page = pywikibot.Page(site, missing_pages_page_title)
-    if not missing_pages_page.exists():
-       print(f"Die Seite {missing_pages_page_title} existiert nicht.")
-       exit(0)
-
-    updated_missing_pages_text = missing_pages_page.text
+    # Load all pages from abb_list
+    for abbrev, info in abb_list.items():
+        page_title = info["page"]
+        if page_title not in pages:
+            page = pywikibot.Page(site, page_title)
+            if not page.exists():
+                print(f"The page {page_title} does not exist!")
+                continue
+            pages[page_title] = page
+            updated_pages[page_title] = page.text
 
     print("Load ignore links list pages ...")
 
@@ -408,9 +414,11 @@ if __name__ == "__main__":
     for redlink in redlink_list:
         new_entry = redlink[1]
         if not (redlink[0] == "off" or redlink[0] == "irr"):
-            section_title = abb_list[redlink[0]]
+            section_title = abb_list[redlink[0]]["section"]
             # print("\"" + new_entry + "\" " + section_title + "\n")
-            updated_missing_pages_text = add_entry_to_section(updated_missing_pages_text, section_title, new_entry)
+            page_title = abb_list[redlink[0]]["page"]
+            section_title = abb_list[redlink[0]]["section"]
+            updated_pages[page_title] = add_entry_to_section(updated_pages[page_title], section_title, new_entry)
         else:
             if (redlink[0] == "off"):
                 # print("\"" + new_entry + "\" " + redlink[0] + "\n")
@@ -428,20 +436,22 @@ if __name__ == "__main__":
     for intermediate_entry in intermediate_list:
         # print(f"intermediate_entry = {intermediate_entry}")
         updated_intermediate_list_text = add_entry_to_intermediate_list(updated_intermediate_list_text, "Rotlinks", intermediate_entry)
- 
-    # print("Show diff ...")
-    # print(missing_pages_page.text == updated_missing_pages_text)
-
-    # diff = difflib.unified_diff(missing_pages_page.text.splitlines(), updated_missing_pages_text.splitlines(), lineterm='')
-    # print("\n".join(diff))
-            
+             
     # diff = difflib.unified_diff(ignore_list_page.text.splitlines(), updated_ignore_list_text.splitlines(), lineterm='')
     # print("\n".join(diff))
 
     # diff = difflib.unified_diff(irrelevant_list_page.text.splitlines(), updated_irrelevant_list_text.splitlines(), lineterm='')
     # print("\n".join(diff))
 
-    save_missing_articles_page(missing_pages_page, updated_missing_pages_text, missing_pages_page.text)
+    for page_title, updated_text in updated_pages.items():
+        original_text = pages[page_title].text
+        if updated_text != original_text:
+            pages[page_title].text = updated_text
+            pages[page_title].save(summary="Einträge aus Neuzugänge hinzugefügt.")
+            print(f"Einträge erfolgreich auf Seite {page_title} gespeichert.")
+        else:
+            print(f"Keine Änderungen an Seite {page_title} vorgenommen.")
+
     save_exclusion_list(updated_ignore_list_text, ignore_list_page.text, ignore_list_page)
     save_exclusion_list(updated_irrelevant_list_text, irrelevant_list_page.text, irrelevant_list_page)
     save_exclusion_list(updated_exclusion_list_text, exclusion_list_page.text, exclusion_list_page)

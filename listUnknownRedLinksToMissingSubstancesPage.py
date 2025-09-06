@@ -14,7 +14,7 @@ from helperfunctions import translate_substance_name_to_englisch, human_readable
 pages_checked = 0
 rotlinks = {}  # Dictionary der Rotlinks: {Rotlink: [Seitennamen]}
 
-def get_missing_substances_list(site):
+def get_missing_substances_list(site, page_title):
     """
     Extrahiert die Liste fehlender Substanzen von der angegebenen Seite.
 
@@ -25,7 +25,6 @@ def get_missing_substances_list(site):
         list: Eine Liste mit den Namen der fehlenden Substanzen.
     """
     
-    page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen"
     print(f"Analysiere die Seite '{page_title}'...")
     page = pywikibot.Page(site, page_title)
 
@@ -458,7 +457,9 @@ if __name__ == "__main__":
     site = pywikibot.Site('de', 'wikipedia')
 
     # fehlende Substanzen Seite auswerten 
-    missing_substances_list = get_missing_substances_list(site)
+    missing_substances_list = get_missing_substances_list(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen")
+    missing_taxa_list = get_missing_substances_list(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Fehlende Taxa")
+    missing_substances_list = missing_substances_list + missing_taxa_list
     ignore_list = get_ignore_list(site)
     exclusion_list = get_exclusion_list(site)
     intermediate_list = get_intermediate_list(site)

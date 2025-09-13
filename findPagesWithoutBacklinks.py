@@ -100,7 +100,7 @@ def main(kategoriename):
     # 💾 Seite speichern
     if new_text != old_text:
         page.text = new_text
-        page.save(summary="Liste der nicht verlinkten Seiten in Chemie-Kategorie aktualisiert", minor=False)
+        page.save(summary=f"Liste der nicht verlinkten Seiten in Chemie-Kategorie aktualisiert ({len(unlinked_pages)} Seiten)", minor=False)
         print("✅ Seite erfolgreich aktualisiert.")
     else:
         print("ℹ️ Keine Änderungen notwendig.")

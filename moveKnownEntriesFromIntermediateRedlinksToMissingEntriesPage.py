@@ -1,6 +1,7 @@
 import pywikibot
 import re
 import difflib
+import time
 from helperfunctions import human_readable_time_difference
 
 def load_short_list(site):

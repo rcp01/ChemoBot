@@ -79,6 +79,7 @@ def analyze_redlinks_section(site, section_title, abb_list):
     redlink_list = []
     exclude_site_name_list = []
     intermediate_list = []
+    intermediate_taxa_list = []
         
     page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge"
     #page_title = "Benutzer:ChemoBot/Tests/Neuzugänge"
@@ -118,7 +119,7 @@ def analyze_redlinks_section(site, section_title, abb_list):
                     section_short_name = match.group(4).strip()  # Text nach dem letzten ">>"
                     
                     if (section_short_name != ""):
-                        if not (section_short_name == "off" or section_short_name == "irr" or section_short_name == "ir2" or section_short_name == "zzz"):
+                        if not (section_short_name == "off" or section_short_name == "irr" or section_short_name == "ir2" or section_short_name == "zzz" or section_short_name == "zzt"):
                             # print("Name:", name, " cas_wd:", cas_wd, " Abkürzung:", section_short_name)
                             if ((section_short_name in abb_list) and (cas_wd != "")):
                                 redlink_list.append([section_short_name, format_missing_page_string(name, cas_wd)])
@@ -129,6 +130,8 @@ def analyze_redlinks_section(site, section_title, abb_list):
                             exclude_site_name_list.append(site_name + " - ")
                         elif (section_short_name == "zzz"):
                             intermediate_list.append(line)
+                        elif (section_short_name == "zzt"):
+                            intermediate_taxa_list.append(line)
                         else:
                             redlink_list.append([section_short_name, name + " - "])
                     else:
@@ -435,7 +438,12 @@ if __name__ == "__main__":
 
     for intermediate_entry in intermediate_list:
         # print(f"intermediate_entry = {intermediate_entry}")
-        updated_intermediate_list_text = add_entry_to_intermediate_list(updated_intermediate_list_text, "Rotlinks", intermediate_entry)
+        updated_intermediate_list_text = add_entry_to_intermediate_list(updated_intermediate_list_text, "Chemie", intermediate_entry)
+
+    for intermediate_entry in intermediate_taxa_list:
+        # print(f"intermediate_entry = {intermediate_entry}")
+        updated_intermediate_list_text = add_entry_to_intermediate_list(updated_intermediate_list_text, "Biologie", intermediate_entry)
+
              
     # diff = difflib.unified_diff(ignore_list_page.text.splitlines(), updated_ignore_list_text.splitlines(), lineterm='')
     # print("\n".join(diff))

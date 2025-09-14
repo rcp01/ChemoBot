@@ -1,6 +1,7 @@
 import pywikibot
 import re
 import difflib
+from helperfunctions import human_readable_time_difference
 
 def load_short_list(site):
     """
@@ -349,6 +350,7 @@ def save_exclusion_list(updated_text, text, page):
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     # Pywikibot-Site initialisieren
     site = pywikibot.Site('de', 'wikipedia')
     
@@ -454,3 +456,4 @@ if __name__ == "__main__":
     save_exclusion_list(updated_irrelevant_list_text, irrelevant_list_page.text, irrelevant_list_page)
     save_exclusion_list(updated_exclusion_list_text, exclusion_list_page.text, exclusion_list_page)
     
+    print("\n⏱️ Laufzeit: ", human_readable_time_difference(start_time, time.time()))

@@ -1,6 +1,19 @@
 This is the repository for the ChemoBot PyWiki sources.
 
-The scripts can directly be started after installing pywikibot (via `pip install pywikibot`) and adding a `user-password.py` file (see pywikibot documentation).
+See https://de.wikipedia.org/wiki/Benutzer:ChemoBot for documentation and actions.
+
+Installation and usage of the scripts
+
+* Install python (>=3.13) and make sure python and pip directories are added to the paths
+* install git
+* clone chemobot (git clone https://github.com/rcp01/ChemoBot.git)
+* download necessary side packages 
+	pip install certifi charset-normalizer idna importlib_metadata jq mwparserfromhell packaging pip pywikibot regex requests urllib3 wcwidth wikitextparser zipp
+* run scripts (you need a pywikibot login)
+* update regularly the packets
+	pip install --upgrade certifi charset-normalizer idna importlib_metadata jq mwparserfromhell packaging pip pywikibot regex requests urllib3 wcwidth wikitextparser zipp
+
+The scripts can directly be started after installing the necessary packets and adding a `user-password.py` file (see pywikibot documentation).
 
 Current scripts:
 * `change_reference_header_in_articles.py`: Replaces section name "Quellen" with "Einzelnachweise".

@@ -1,6 +1,7 @@
 import pywikibot
 import re
 import time
+import mwparserfromhell
 from collections import defaultdict
 
 unknown_wikidata = "Q000000"
@@ -48,6 +49,54 @@ def count_incoming_links(site, title):
     """Zählt die Anzahl der eingehenden Links auf eine Seite in der Wikipedia."""
     page = pywikibot.Page(site, title)
     return len(list(page.backlinks(namespaces=[0])))  # Nur Artikel-Namensraum
+
+def count_links_via_templates(site, target_title, namespaces=[0]):
+    """
+    Zählt, wie viele Links auf `target_title` direkt im Wikitext vorkommen
+    und wie viele über Vorlagen erzeugt werden.
+
+    Args:
+        site (pywikibot.Site): Wikipedia-Site, z. B. Site("de", "wikipedia")
+        target_title (str): Titel der Zielseite, z. B. "Berlin"
+        namespaces (list): Liste von Namespaces, in denen gesucht werden soll (Standard: [0] = Artikel)
+
+    Returns:
+        dict: {"direct": int, "template": int, "total": int}
+    """
+    target_page = pywikibot.Page(site, target_title)
+    refs = list(target_page.getReferences(only_template_inclusion=False, namespaces=namespaces))
+
+    direct_count = 0
+    template_count = 0
+
+    for page in refs:
+        try:
+            # Roh-Wikitext
+            raw = page.text
+            wikicode_raw = mwparserfromhell.parse(raw)
+            raw_links = {str(link.title) for link in wikicode_raw.filter_wikilinks()}
+
+            # Expandierter Text (inkl. Vorlagen)
+            expanded = page.expand_text()
+            wikicode_expanded = mwparserfromhell.parse(expanded)
+            expanded_links = {str(link.title) for link in wikicode_expanded.filter_wikilinks()}
+
+            # Entscheidung: direkt oder via Vorlage?
+            if target_title in expanded_links:
+                if target_title in raw_links:
+                    direct_count += 1
+                else:
+                    template_count += 1
+
+        except Exception as e:
+            print(f"Fehler bei {page.title()}: {e}")
+
+    return {
+        "direct": direct_count,
+        "template": template_count,
+        "total": direct_count + template_count,
+    }
+
 
 def has_german_wikipedia_link(site, item):
     
@@ -114,12 +163,13 @@ def update_wikipedia_page(site, results):
         if len(data["substances"]) == 1:
             substance = data["substances"][0]
             links = data['links'][0]
+            template_links = data['template_links'][0]
             searchcount = data['searchcount'][0]
             page2 = pywikibot.Page(site, substance)
             if page2.exists() and page2.isRedirectPage():
-                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]]), CAS:{cas_nr}\n"            
-            else:            
-                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]], CAS:{cas_nr}\n"
+                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]]), CAS:{cas_nr}\n"            
+            else:
+                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]], CAS:{cas_nr}\n"
         else:
             # print(data["substances"])
             substance_list = ""
@@ -135,7 +185,8 @@ def update_wikipedia_page(site, results):
                 linklist_list += f"[[Spezial:Linkliste/{s}|{links}]]+"
                 count += 1
             
-            new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) auf und [https://de.wikipedia.org/w/index.php?search=%22{data["substances"][0].replace(" ", "%20")}%22&ns0=1 {sum(data['searchcount'])}] Suchtreffer {wikidata_text} für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"
+            template_links = sum(data['template_links'])
+            new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{data["substances"][0].replace(" ", "%20")}%22&ns0=1 {sum(data['searchcount'])}] Suchtreffer {wikidata_text} für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"
         print(f"{counter}/{len(results.items())} {data["substances"][0]}")
         counter += 1
 
@@ -188,7 +239,7 @@ def main():
     print("Get missing substances ...")
     substances = get_missing_substances(site, page_title)
     
-    results = defaultdict(lambda: {"substances": [], "links": [], "searchcount": [], "has_german": False, "german_name": "", "langs": -1, "cas_nr" : ""})
+    results = defaultdict(lambda: {"substances": [], "links": [], "template_links": [], "searchcount": [], "has_german": False, "german_name": "", "langs": -1, "cas_nr" : ""})
     
     count = 0
     print("Get information for pages ...")
@@ -198,11 +249,15 @@ def main():
         
         if wikidata_id == unknown_wikidata:
             incoming_links = count_incoming_links(site, name)
-            
-            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Suchtreffer: {searchcount}, Deutscher Artikel: {False}, Sprachen: {-1}, cas: {cas_nr}")
+            if (incoming_links > 3):
+                incoming_links_templates = count_links_via_templates(site, name)["template"]
+            else:
+                incoming_links_templates = 0
+            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, davon Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {False}, Sprachen: {-1}, cas: {cas_nr}")
             
             results[name]["substances"].append(name)
             results[name]["links"].append(incoming_links)
+            results[name]["template_links"].append(incoming_links_templates)
             results[name]["has_german"] |= False
             results[name]["german_name"] = ""
             results[name]["langs"] = -1
@@ -211,14 +266,19 @@ def main():
         
         else:
             incoming_links = count_incoming_links(site, name)
+            if (incoming_links > 3):
+                incoming_links_templates = count_links_via_templates(site, name)["template"]
+            else:
+                incoming_links_templates = 0
             item = getWikidataItem(site, wikidata_id)
             result = has_german_wikipedia_link(site, item)
             language_count = count_wikipedia_languages(site, item)
             
-            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, Suchtreffer: {searchcount}, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}, cas: {cas_nr}")
+            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, davon Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}, cas: {cas_nr}")
             
             results[wikidata_id]["substances"].append(name)
             results[wikidata_id]["links"].append(incoming_links)
+            results[wikidata_id]["template_links"].append(incoming_links_templates)
             results[wikidata_id]["has_german"] |= result["has_german_wikipedia_link"]
             results[wikidata_id]["german_name"] = result["german_page_name"]
             results[wikidata_id]["langs"] = max(results[wikidata_id]["langs"], language_count)
@@ -232,7 +292,7 @@ def main():
     sorted_results = dict(sorted(results.items(), key=lambda x: (
         not x[1]["has_german"], 
         x[1]["langs"] != -1, 
-        -sum(x[1]["links"]), 
+        -(sum(x[1]["links"]) - sum(x[1]["template_links"])), 
         -x[1]["langs"], 
         -sum(x[1]["searchcount"]), 
         x[1]["substances"][0].lower() if x[1]["substances"] else ""

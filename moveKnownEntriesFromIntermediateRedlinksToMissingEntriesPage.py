@@ -136,7 +136,7 @@ def analyze_intermediate_redlinks_section(site, section_title, abb_list):
                     section_short_name = match.group(4).strip()  # Text nach dem letzten ">>"
                     
                     if (section_short_name != ""):
-                        if not (section_short_name == "off" or section_short_name == "irr" or section_short_name == "ir2" or section_short_name == "zzz"):
+                        if not (section_short_name == "off" or section_short_name == "irr" or section_short_name == "ir2" or section_short_name == "zzz" or section_short_name == "zzt"):
                             # print("Name:", name, " cas_wd:", cas_wd, " Abkürzung:", section_short_name)
                             if ((section_short_name in abb_list) and (cas_wd != "")):
                                 redlink_list.append([section_short_name, format_missing_page_string(name, cas_wd)])
@@ -145,7 +145,7 @@ def analyze_intermediate_redlinks_section(site, section_title, abb_list):
                                 filtered_lines.append(line)
                         elif (section_short_name == "ir2"):
                             exclude_site_name_list.append(site_name + " - ")
-                        elif (section_short_name == "zzz"):
+                        elif (section_short_name == "zzz" or section_short_name == "zzt"):
                             # same as before, therefore ignore line
                             if check_if_redlink_exists(site, name.replace("[[", "").replace("]]", "")):
                                 filtered_lines.append(line)

@@ -457,4 +457,4 @@ if __name__ == "__main__":
     save_exclusion_list(updated_irrelevant_list_text, irrelevant_list_page.text, irrelevant_list_page)
     save_exclusion_list(updated_exclusion_list_text, exclusion_list_page.text, exclusion_list_page)
     
-    print("\n⏱️ Laufzeit: ", human_readable_time_difference(start_time, time.time()))
+    print("\nLaufzeit: ", human_readable_time_difference(start_time, time.time()))

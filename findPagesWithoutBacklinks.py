@@ -12,16 +12,16 @@ def get_all_pages_in_category(cat, recurse=True):
     print(f"🔄 {len(subcats)} Unterkategorien gefunden...")
 
     for i, subcat in enumerate(subcats, 1):
-        print(f"📁 [{i}/{len(subcats)}] Unterkategorie: {subcat.title()}")
+        print(f"[{i}/{len(subcats)}] Unterkategorie: {subcat.title()}")
         subpages = list(subcat.articles(namespaces=[0]))
         print(f"  → {len(subpages)} Seiten")
         pages.update(subpages)
 
     main_pages = list(cat.articles(namespaces=[0]))
-    print(f"📁 Hauptkategorie: {cat.title()} mit {len(main_pages)} Seiten")
+    print(f"Hauptkategorie: {cat.title()} mit {len(main_pages)} Seiten")
     pages.update(main_pages)
 
-    print(f"✅ Gesamtseiten gesammelt: {len(pages)}")
+    print(f"Gesamtseiten gesammelt: {len(pages)}")
     return pages
 
 def main(kategoriename):
@@ -34,14 +34,14 @@ def main(kategoriename):
     # Lade alle verwaisten Seiten
     lonely_pages = pagegenerators.LonelyPagesPageGenerator(site=site, total=None)
 
-    print("\n⏱️ Laufzeit verwaist: ", human_readable_time_difference(start_time, time.time()))
+    print("\nLaufzeit verwaist: ", human_readable_time_difference(start_time, time.time()))
 
     # 🔍 Effizient alle Artikel (Namensraum 0) in Kategorie + Unterkategorien
     all_pages_gen = pagegenerators.CategorizedPageGenerator(cat, recurse=True, namespaces=[0])
     all_pages = list(all_pages_gen)
-    print(f"✅ Gesamtanzahl Artikel: {len(all_pages)}")
+    print(f"Gesamtanzahl Artikel: {len(all_pages)}")
 
-    print("\n⏱️ Laufzeit Kats: ", human_readable_time_difference(start_time, time.time()))
+    print("\nLaufzeit Kats: ", human_readable_time_difference(start_time, time.time()))
     
     preloaded_pages = pagegenerators.PreloadingGenerator(all_pages, groupsize=50)
 
@@ -101,11 +101,11 @@ def main(kategoriename):
     if new_text != old_text:
         page.text = new_text
         page.save(summary=f"Liste der nicht verlinkten Seiten in Chemie-Kategorie aktualisiert ({len(unlinked_pages)} Seiten)", minor=False)
-        print("✅ Seite erfolgreich aktualisiert.")
+        print("Seite erfolgreich aktualisiert.")
     else:
-        print("ℹ️ Keine Änderungen notwendig.")
+        print("Keine Änderungen notwendig.")
 
-    print("\n⏱️ Laufzeit: ", human_readable_time_difference(start_time, time.time()))
+    print("\nLaufzeit: ", human_readable_time_difference(start_time, time.time()))
 
 if __name__ == "__main__":
     # main("Kategorie:Chemie")  # Beispiel

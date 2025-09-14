@@ -146,7 +146,7 @@ def analyze_redlinks_section(site, section_title, abb_list):
         print(f"Fehler beim Analysieren der Seite: {e}")
         
     # print(redlink_list)
-    return {"redlink_list":redlink_list, "exclude_site_name_list":exclude_site_name_list, "intermediate_list": intermediate_list}
+    return {"redlink_list":redlink_list, "exclude_site_name_list":exclude_site_name_list, "intermediate_list": intermediate_list, "intermediate_taxa_list": intermediate_taxa_list}
          
 
 def add_entry_to_section(text, section_title, new_entry):
@@ -410,6 +410,7 @@ if __name__ == "__main__":
     result_act = analyze_redlinks_section(site, "Substanzinfo", abb_list)
     redlink_list = result_red["redlink_list"] + result_act["redlink_list"]
     intermediate_list = result_red["intermediate_list"] + result_act["intermediate_list"]
+    intermediate_taxa_list = result_red["intermediate_taxa_list"]
 
     print("Analyze redlinks ...")
 

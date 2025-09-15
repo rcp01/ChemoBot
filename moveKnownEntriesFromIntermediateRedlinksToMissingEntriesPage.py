@@ -414,7 +414,7 @@ if __name__ == "__main__":
 
     print("Load redlinks ...")
 
-    result_red = analyze_intermediate_redlinks_section(site, "Rotlinks", abb_list) 
+    result_red = analyze_intermediate_redlinks_section(site, "Chemie", abb_list) 
     redlink_list = result_red["redlink_list"]
 
     print("Analyze redlinks ...")

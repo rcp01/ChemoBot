@@ -406,11 +406,13 @@ def update_wikipedia_page(site, rotlinks, last_page_name):
 
             # preserve old cas if it is known
             try:
-                match = re.search(fr'\* \[\[{red_link}\]\] >> .*? >>\s*(.*?)\s*>>\s*', section_content, re.DOTALL)
+                escaped_red_link = re.escape(red_link)
+                match = re.search(fr'\* \[\[{escaped_red_link}\]\] >> .*? >>\s*(.*?)\s*>>\s*', section_content, re.DOTALL)
             except Exception as e:
                 print(f"Fehler beim Verarbeiten der Seite {page.title()}: {e}")
                 print(f"red_link = {red_link}")
                 print(f"section_content = {section_content}")
+                match = None
 
             if match and match.group(1).strip() != "":
                 addon = f"{match.group(1).strip()}"

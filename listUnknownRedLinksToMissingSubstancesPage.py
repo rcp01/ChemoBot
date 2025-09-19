@@ -8,6 +8,7 @@ import time
 import traceback
 import re
 import requests
+import mwparserfromhell
 from helperfunctions import translate_substance_name_to_englisch, human_readable_time_difference
 
 # Globale Variablen
@@ -453,6 +454,42 @@ def save_red_links_to_file(filename, rotlinks, last_page_name):
             file.write(f"* [[{red_link}]] >> {pages} >>  >>\n")
     print(f"Rotlinks wurden in '{filename}' gespeichert. (letzte analysierte Seite: {pages_checked}. {last_page_name})") 
 
+def extract_all_minerals(site, mainpage_title):
+    """
+    Holt alle Mineralnamen aus der 'Liste der Minerale' inkl. Unterseiten.
+    Nimmt nur Einträge aus den Tabellenzeilen (mit ||).
+    Gibt eine Liste mit Mineralnamen zurück, in der Reihenfolge des Auftretens.
+    """
+
+    print(f"Analysiere die Liste der Minerale {mainpage_title}")
+
+    mainpage = pywikibot.Page(site, mainpage_title)
+    text = mainpage.text
+
+    # Unterseiten finden: {{:Liste der Minerale/X}}
+    subpages = re.findall(r"\{\{:(Liste der Minerale/[A-Z])\}\}", text)
+
+    all_minerals = []
+    seen = set()
+
+    for sub in subpages:
+        page = pywikibot.Page(site, sub)
+        lines = page.text.splitlines()
+
+        for line in lines:
+            # nur Tabellenzeilen mit || (also Einträge, keine Überschriften/Kommentare)
+            if line.startswith("|") and "||" in line:
+                code = mwparserfromhell.parse(line)
+                for link in code.filter_wikilinks():
+                    title = str(link.title).strip()
+                    if title not in seen:
+                        all_minerals.append(title)
+                        seen.add(title)
+
+    print(f"Gesamtanzahl Minerale: {len(all_minerals)} (werden ignoriert)")
+
+    return all_minerals
+
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -462,7 +499,11 @@ if __name__ == "__main__":
     missing_substances_list = get_missing_substances_list(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen")
     missing_taxa_list = get_missing_substances_list(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Fehlende Taxa")
     missing_substances_list = missing_substances_list + missing_taxa_list
+
     ignore_list = get_ignore_list(site)
+    minerals = extract_all_minerals(site, "Liste der Minerale")
+    ignore_list = ignore_list + minerals
+
     exclusion_list = get_exclusion_list(site)
     intermediate_list = get_intermediate_list(site)
 

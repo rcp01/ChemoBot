@@ -5,7 +5,6 @@ import mwparserfromhell
 from collections import defaultdict
 
 unknown_wikidata = "Q000000"
-unknown_ec = "-"
 
 def get_missing_taxa(site, page_title):
     """Extrahiert die Liste der fehlenden Taxa von der Wikipedia-Seite."""
@@ -19,17 +18,13 @@ def get_missing_taxa(site, page_title):
         wikidata_match = re.search(r'\[\[:d:(Q\d+)', bracket_content)
         wikidata_id = wikidata_match.group(1) if wikidata_match else unknown_wikidata
         # print(bracket_content)
-        ec_match = re.search(r'(\d+-\d+-\d)', bracket_content)
-        ec_nr = ec_match.group(1) if ec_match else unknown_ec
         # print(bracket_content, wikidata_match)
-        taxa.append((name, wikidata_id, ec_nr))
+        taxa.append((name, wikidata_id))
 
     # Einträge ohne Klammer
     matches = re.findall(r'\[\[([^|\]]+)[^\]]*\]\] -', content)
     for name in matches:
-        ec_match = re.search(r'\d+-\d+-\d', bracket_content)
-        ec_nr = ec_match.group(1) if ec_match else unknown_ec
-        taxa.append((name, unknown_wikidata, ec_nr))
+        taxa.append((name, unknown_wikidata))
     # print(taxa)
     return taxa
 
@@ -144,22 +139,13 @@ def update_wikipedia_page(site, results):
                 german_text = f"(dabei auch anderer Artikel [[{data["german_name"]}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]]) in Deutsch) "
             else:
                 german_text = f"(dabei auch anderer Artikel [[{data["german_name"]}]] in Deutsch) "  
-        ec_nr = data["ec_nr"]
         langs_count = data['langs']
         wikidata_text = ""        
         if langs_count == -1: 
-            if len(ec_nr)>1:
-                name=data["taxa"][0]
-                name = name.replace(" ", "%20")
-                wikidata_text = f"und '''kein [//tools.wmflabs.org/wikidata-todo/resolver.php?prop=231&value={ec_nr} Wikidata]-Eintrag''' ([https://www.wikidata.org/wiki/Special:NewItem?uselang=de&label={name}&description=chemische%20Verbindung Neu anlegen]) vorhanden"
-                # print(wikidata_text)
-            else:
-                wikidata_text = f"und '''kein [[:d:{wikidata}|Wikidata-Eintrag]]''' ([https://www.wikidata.org/wiki/Special:NewItem?uselang=de&label={data["taxa"][0]}&description=chemische%20Verbindung Neu anlegen]) vorhanden"
+           wikidata_text = f"und '''kein [[:d:{wikidata}|Wikidata-Eintrag]]''' ([https://www.wikidata.org/wiki/Special:NewItem?uselang=de&label={data["taxa"][0]}&description=chemische%20Verbindung Neu anlegen]) vorhanden"
         else:
             wikidata_text = f"und in [[:d:{wikidata}|{langs_count}]] anderen Sprachen {german_text}vorhanden"
         
-        if len(ec_nr)>1:
-            ec_nr = "{{CASRN|"+ec_nr+"}}"
         if len(data["taxa"]) == 1:
             substance = data["taxa"][0]
             links = data['links'][0]
@@ -167,9 +153,9 @@ def update_wikipedia_page(site, results):
             searchcount = data['searchcount'][0]
             page2 = pywikibot.Page(site, substance)
             if page2.exists() and page2.isRedirectPage():
-                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]]), EC:{ec_nr}\n"            
+                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]])\n"            
             else:
-                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]], EC:{ec_nr}\n"
+                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]]\n"
         else:
             # print(data["taxa"])
             substance_list = ""
@@ -186,7 +172,7 @@ def update_wikipedia_page(site, results):
                 count += 1
             
             template_links = sum(data['template_links'])
-            new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{data["taxa"][0].replace(" ", "%20")}%22&ns0=1 {sum(data['searchcount'])}] Suchtreffer {wikidata_text} für {substance_list.rstrip("/")}, EC:{ec_nr}\n"
+            new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{data["taxa"][0].replace(" ", "%20")}%22&ns0=1 {sum(data['searchcount'])}] Suchtreffer {wikidata_text} für {substance_list.rstrip("/")}\n"
         print(f"{counter}/{len(results.items())} {data["taxa"][0]}")
         counter += 1
 
@@ -239,11 +225,11 @@ def main():
     print("Get missing taxa ...")
     taxa = get_missing_taxa(site, page_title)
     
-    results = defaultdict(lambda: {"taxa": [], "links": [], "template_links": [], "searchcount": [], "has_german": False, "german_name": "", "langs": -1, "ec_nr" : ""})
+    results = defaultdict(lambda: {"taxa": [], "links": [], "template_links": [], "searchcount": [], "has_german": False, "german_name": "", "langs": -1})
     
     count = 0
     print("Get information for pages ...")
-    for count, (name, wikidata_id, ec_nr) in enumerate(taxa, start=1):
+    for count, (name, wikidata_id) in enumerate(taxa, start=1):
         
         searchcount = getSearchCount(site, name)
         
@@ -253,7 +239,7 @@ def main():
                 incoming_links_templates = count_links_via_templates(site, name)["template"]
             else:
                 incoming_links_templates = 0
-            print(f"{count}/{len(taxa)} {name}: {incoming_links} Links, davon Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {False}, Sprachen: {-1}, ec: {ec_nr}")
+            print(f"{count}/{len(taxa)} {name}: {incoming_links} Links, davon Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {False}, Sprachen: {-1}")
             
             results[name]["taxa"].append(name)
             results[name]["links"].append(incoming_links)
@@ -261,7 +247,6 @@ def main():
             results[name]["has_german"] |= False
             results[name]["german_name"] = ""
             results[name]["langs"] = -1
-            results[name]["ec_nr"] = ec_nr
             results[name]["searchcount"].append(searchcount)
         
         else:
@@ -274,7 +259,7 @@ def main():
             result = has_german_wikipedia_link(site, item)
             language_count = count_wikipedia_languages(site, item)
             
-            print(f"{count}/{len(taxa)} {name}: {incoming_links} Links, davon Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}, ec: {ec_nr}")
+            print(f"{count}/{len(taxa)} {name}: {incoming_links} Links, davon Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}")
             
             results[wikidata_id]["taxa"].append(name)
             results[wikidata_id]["links"].append(incoming_links)
@@ -282,7 +267,6 @@ def main():
             results[wikidata_id]["has_german"] |= result["has_german_wikipedia_link"]
             results[wikidata_id]["german_name"] = result["german_page_name"]
             results[wikidata_id]["langs"] = max(results[wikidata_id]["langs"], language_count)
-            results[wikidata_id]["ec_nr"] = ec_nr
             results[wikidata_id]["searchcount"].append(searchcount)
         
         # if (count >= 100):
@@ -292,7 +276,7 @@ def main():
     sorted_results = dict(sorted(results.items(), key=lambda x: (
         not x[1]["has_german"], 
         x[1]["langs"] != -1, 
-        -(sum(x[1]["links"]) - sum(x[1]["template_links"])), 
+        -(sum(x[1]["links"])), 
         -x[1]["langs"], 
         -sum(x[1]["searchcount"]), 
         x[1]["taxa"][0].lower() if x[1]["taxa"] else ""

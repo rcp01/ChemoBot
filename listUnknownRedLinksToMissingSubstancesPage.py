@@ -10,6 +10,7 @@ import re
 import requests
 import mwparserfromhell
 from helperfunctions import translate_substance_name_to_englisch, human_readable_time_difference
+from typing import Optional
 
 # Globale Variablen
 pages_checked = 0
@@ -341,6 +342,10 @@ def search_cas_number(chemical_name):
         str: Gefundene CAS-Nummer oder leerer String, wenn keine gefunden wurde.
     """
     
+    # don't check suspicious names
+    if " " in chemical_name:
+       return ""         
+        
     chemical_name_org = chemical_name
     chemical_name = translate_substance_name_to_englisch(chemical_name)
     
@@ -383,6 +388,103 @@ def search_cas_number(chemical_name):
     print(f"\"{chemical_name_org}\" -> \"{chemical_name}\" : None")
     return ""
 
+TAXON_QID = "Q16521"
+GROUPS = {
+    "Q756": "tfpf", #"Pflanze",
+    "Q729": "tfti", #"Tier",
+    "Q764": "tfpi", #"Pilz",
+    "Q7868": "tfmi", #"Mikroorganismus", # Oberbegriff
+    "Q10876": "tfmi", #"Mikroorganismus",# Bacteria
+    "Q10850": "tfmi", #"Mikroorganismus",# Archaea
+    "Q808": "tfmi", #"Mikroorganismus",  # Virus
+    "Q474548": "tfmi", #"Mikroorganismus" # Protist
+}
+
+# globaler Cache: QID -> Liste der Parent-QIDs
+parent_cache: dict[str, list[str]] = {}
+
+
+def get_parents(item: pywikibot.ItemPage) -> list[str]:
+    """Hole Eltern (P171) eines Items, benutze Cache falls vorhanden."""
+    if item.id in parent_cache:
+        return parent_cache[item.id]
+
+    parents = []
+    for claim in item.claims.get("P171", []):
+        target = claim.getTarget()
+        if isinstance(target, pywikibot.ItemPage):
+            parents.append(target.id)
+
+    parent_cache[item.id] = parents
+    return parents
+
+
+def classify_taxon(name: str, language: str = "de") -> Optional[tuple[str, Optional[str]]]:
+    """
+    Suche ein Taxon nach Name und klassifiziere es als Pflanze, Tier, Pilz oder Mikroorganismus.
+    Gibt (QID, Gruppe) zurück oder None, falls kein Taxon gefunden.
+    """
+    
+    if not " " in name:
+        return None
+    
+    site = pywikibot.Site("wikidata", "wikidata")
+    repo = site.data_repository()
+
+    # Suche Item
+    req = pywikibot.data.api.Request(
+        site=site,
+        parameters={
+            "action": "wbsearchentities",
+            "search": name,
+            "language": language,
+            "type": "item",
+            "limit": 5,
+        },
+    )
+    results = req.submit().get("search", [])
+    if not results:
+        return None
+
+    for hit in results:
+        qid = hit.get("id")
+        if not qid:
+            continue
+
+        item = pywikibot.ItemPage(repo, qid)
+        item.get()  # einmal laden
+
+        # Prüfen, ob es ein Taxon ist (P31 = taxon)
+        if not any(
+            (c.getTarget().id == TAXON_QID)
+            for c in item.claims.get("P31", [])
+            if c.getTarget()
+        ):
+            continue
+
+        # Baum hochlaufen (mit Cache durch Pywikibot intern)
+        visited = set()
+        queue = [item.id]
+        while queue:
+            cur_qid = queue.pop()
+            if cur_qid in visited:
+                continue
+            visited.add(cur_qid)
+
+            # Prüfen, ob Obergruppe erreicht
+            if cur_qid in GROUPS:
+                return qid, GROUPS[cur_qid]
+
+            # Eltern holen
+            cur_item = pywikibot.ItemPage(repo, cur_qid)
+            cur_item.get()
+            queue.extend(get_parents(cur_item))
+
+        # kein Treffer im Baum → trotzdem QID zurück, Gruppe = None
+        return qid, None
+
+    return None
+    
 def update_wikipedia_page(site, rotlinks, last_page_name):
     page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge"
     #page_title = "Benutzer:ChemoBot/Tests/Neuzugänge"
@@ -404,6 +506,7 @@ def update_wikipedia_page(site, rotlinks, last_page_name):
         for red_link in sorted(rotlinks.keys()):
             pages = ", ".join(sorted(rotlinks[red_link]))
             addon = ""
+            addon2 = ""
 
             # preserve old cas if it is known
             try:
@@ -424,9 +527,14 @@ def update_wikipedia_page(site, rotlinks, last_page_name):
                     if (wikidata != ""):
                         addon = f"{cas},{wikidata}"
                     else:
-                        addon = f"{cas}"            
-
-            new_section_content += f"* [[{red_link}]] >> {pages} >> {addon} >>\n"
+                        addon = f"{cas}"
+                else:
+                    wikidata, group = classify_taxon(red_link)
+                    if (wikidata and wikidata != ""):
+                        addon = f"{wikidata}"
+                    if (group):
+                        addon2 = group
+            new_section_content += f"* [[{red_link}]] >> {pages} >> {addon} >>{addon2}\n"
                
         new_text = text.replace(section_content, new_section_content)
         

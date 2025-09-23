@@ -426,7 +426,7 @@ def classify_taxon(name: str, language: str = "de") -> Optional[tuple[str, Optio
     """
     
     if not " " in name:
-        return None
+        return None, None
     
     site = pywikibot.Site("wikidata", "wikidata")
     repo = site.data_repository()
@@ -444,7 +444,7 @@ def classify_taxon(name: str, language: str = "de") -> Optional[tuple[str, Optio
     )
     results = req.submit().get("search", [])
     if not results:
-        return None
+        return None, None
 
     for hit in results:
         qid = hit.get("id")
@@ -483,7 +483,7 @@ def classify_taxon(name: str, language: str = "de") -> Optional[tuple[str, Optio
         # kein Treffer im Baum → trotzdem QID zurück, Gruppe = None
         return qid, None
 
-    return None
+    return None, None
     
 def update_wikipedia_page(site, rotlinks, last_page_name):
     page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge"

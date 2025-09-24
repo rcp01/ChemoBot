@@ -21,7 +21,7 @@ def extract_all_minerals(site, mainpage_title):
         lines = page.text.splitlines()
 
         for line in lines:
-            if line.startswith("|") and "||" in line:
+            if (line.startswith("|") and "||" in line) or line.startswith("* ") :
                 code = mwparserfromhell.parse(line)
                 for link in code.filter_wikilinks():
                     title = str(link.title).strip()

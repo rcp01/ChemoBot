@@ -414,8 +414,10 @@ if __name__ == "__main__":
 
     print("Load redlinks ...")
 
-    result_red = analyze_intermediate_redlinks_section(site, "Chemie", abb_list) 
-    redlink_list = result_red["redlink_list"]
+    result_red_chemie = analyze_intermediate_redlinks_section(site, "Chemie", abb_list) 
+    result_red_bio = analyze_intermediate_redlinks_section(site, "Biologie", abb_list) 
+
+    redlink_list = result_red_chemie["redlink_list"] + result_red_bio["redlink_list"] 
 
     print("Analyze redlinks ...")
 
@@ -434,7 +436,7 @@ if __name__ == "__main__":
                 # print("\"" + new_entry + "\" " + redlink[0] + "\n")
                 updated_irrelevant_list_text = add_entry_to_exclusion_list(updated_irrelevant_list_text, "Ausschlussliste", new_entry)
     
-    exclude_site_name_list = result_red["exclude_site_name_list"]
+    exclude_site_name_list = result_red_chemie["exclude_site_name_list"] + result_red_bio["exclude_site_name_list"]
     # print("exclude_site_name_list=", exclude_site_name_list)
     for exclude_site_name in exclude_site_name_list:
         # print(f"exclude_site_name = {exclude_site_name}")

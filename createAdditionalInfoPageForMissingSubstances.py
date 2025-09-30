@@ -148,13 +148,13 @@ def update_wikipedia_page(site, results):
         langs_count = data['langs']
         wikidata_text = ""        
         if langs_count == -1: 
+            name=data["substances"][0]
+            name = name.replace(" ", "%20")
             if len(cas_nr)>1:
-                name=data["substances"][0]
-                name = name.replace(" ", "%20")
                 wikidata_text = f"und '''kein [//tools.wmflabs.org/wikidata-todo/resolver.php?prop=231&value={cas_nr} Wikidata]-Eintrag''' ([https://www.wikidata.org/wiki/Special:NewItem?uselang=de&label={name}&description=chemische%20Verbindung Neu anlegen]) vorhanden"
                 # print(wikidata_text)
             else:
-                wikidata_text = f"und '''kein [[:d:{wikidata}|Wikidata-Eintrag]]''' ([https://www.wikidata.org/wiki/Special:NewItem?uselang=de&label={data["substances"][0]}&description=chemische%20Verbindung Neu anlegen]) vorhanden"
+                wikidata_text = f"und '''kein [[:d:{wikidata}|Wikidata-Eintrag]]''' ([https://www.wikidata.org/wiki/Special:NewItem?uselang=de&label={name}&description=chemische%20Verbindung Neu anlegen]) vorhanden"
         else:
             wikidata_text = f"und in [[:d:{wikidata}|{langs_count}]] anderen Sprachen {german_text}vorhanden"
         

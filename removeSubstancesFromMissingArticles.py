@@ -131,6 +131,7 @@ def main():
     skip_headings = [
         "Top-Vorschläge zum Erstellen neuer Artikel",
         "Vorschläge mit hoher Priorität",
+        "Am häufigsten verlinkte fehlende Artikel"
         # Weitere Überschriften hier hinzufügen
     ]
 

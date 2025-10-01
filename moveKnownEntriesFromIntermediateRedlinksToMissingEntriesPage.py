@@ -145,7 +145,7 @@ def analyze_intermediate_redlinks_section(site, section_title, abb_list):
                                 filtered_lines.append(line)
                         elif (section_short_name == "ir2"):
                             exclude_site_name_list.append(site_name + " - ")
-                        elif (section_short_name == "zzz" or section_short_name == "zzt") or section_short_name == "zzs"):
+                        elif (section_short_name == "zzz" or section_short_name == "zzt" or section_short_name == "zzs"):
                             # same as before, therefore ignore line
                             if check_if_redlink_exists(site, name.replace("[[", "").replace("]]", "")):
                                 filtered_lines.append(line)

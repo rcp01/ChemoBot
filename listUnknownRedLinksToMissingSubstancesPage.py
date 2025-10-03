@@ -607,7 +607,9 @@ if __name__ == "__main__":
     missing_substances_list = get_missing_substances_list(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen")
     missing_taxa_list = get_missing_substances_list(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Fehlende Taxa")
     missing_journal_list = get_missing_substances_list(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Fehlende Journals")
-    missing_substances_list = missing_substances_list + missing_taxa_list + missing_journal_list
+    missing_companies_list = get_missing_substances_list(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Fehlende Unternehmen")
+    missing_others_list = get_missing_substances_list(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Sonstige Themen")
+    missing_substances_list = missing_substances_list + missing_taxa_list + missing_journal_list + missing_companies_list + missing_others_list
 
     ignore_list = get_ignore_list(site)
     minerals = extract_all_minerals(site, "Liste der Minerale")

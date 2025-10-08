@@ -54,7 +54,7 @@ def main(kategoriename):
         backlinks = list(page.backlinks(filter_redirects=False, namespaces=[0]))
         backlinks = [bl for bl in backlinks if bl.title() != page.title()]
         
-        print(f"{i}. {len(backlinks)} für {page.title()} ")
+        print(f"{i}. {len(backlinks)} Links auf {page.title()} ")
 
         if not backlinks:
             unlinked_pages.append(page.title())

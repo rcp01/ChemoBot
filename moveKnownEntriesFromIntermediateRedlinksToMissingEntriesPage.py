@@ -136,7 +136,7 @@ def analyze_intermediate_redlinks_section(site, section_title, abb_list):
                     section_short_name = match.group(4).strip()  # Text nach dem letzten ">>"
                     
                     if (section_short_name != ""):
-                        if not (section_short_name == "off" or section_short_name == "irr" or section_short_name == "ir2" or section_short_name == "zzz" or section_short_name == "zzt" or section_short_name == "zzs"):
+                        if section_short_name not in {"off", "offp", "irr", "ir2", "zzz", "zzt", "zzs"}:
                             # print("Name:", name, " cas_wd:", cas_wd, " Abkürzung:", section_short_name)
                             if ((section_short_name in abb_list) and (cas_wd != "")):
                                 redlink_list.append([section_short_name, format_missing_page_string(name, cas_wd)])
@@ -416,15 +416,16 @@ if __name__ == "__main__":
 
     result_red_chemie = analyze_intermediate_redlinks_section(site, "Chemie", abb_list) 
     result_red_bio = analyze_intermediate_redlinks_section(site, "Biologie", abb_list) 
+    result_red_others = analyze_intermediate_redlinks_section(site, "Sonstiges", abb_list) 
 
-    redlink_list = result_red_chemie["redlink_list"] + result_red_bio["redlink_list"] 
+    redlink_list = result_red_chemie["redlink_list"] + result_red_bio["redlink_list"] + result_red_others["redlink_list"] 
 
     print("Analyze redlinks ...")
 
     # Eintrag hinzufügen
     for redlink in redlink_list:
         new_entry = redlink[1]
-        if not (redlink[0] == "off" or redlink[0] == "irr"):
+        if redlink[0] not in {"off", "offp", "irr"}:
             section_title = abb_list[redlink[0]]
             # print("\"" + new_entry + "\" " + section_title + "\n")
             updated_missing_pages_text = add_entry_to_section(updated_missing_pages_text, section_title, new_entry)
@@ -432,6 +433,9 @@ if __name__ == "__main__":
             if (redlink[0] == "off"):
                 # print("\"" + new_entry + "\" " + redlink[0] + "\n")
                 updated_ignore_list_text = add_entry_to_exclusion_list(updated_ignore_list_text, "Ausschlussliste", new_entry)
+            elif (redlink[0] == "offp"):
+                # print("\"" + new_entry + "\" " + redlink[0] + "\n")
+                updated_ignore_list_text = add_entry_to_exclusion_list(updated_ignore_list_text, "Personen", new_entry)
             else:
                 # print("\"" + new_entry + "\" " + redlink[0] + "\n")
                 updated_irrelevant_list_text = add_entry_to_exclusion_list(updated_irrelevant_list_text, "Ausschlussliste", new_entry)

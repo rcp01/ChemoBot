@@ -77,7 +77,7 @@ def analyze_redlinks_section(site, section_title, abb_list):
         site (pywikibot.Site): Die Pywikibot-Site-Instanz.
     """
     redlink_list = []
-    exclude_site_name_list = []
+    irrelevant_site_name_list = []
     intermediate_list = []
     intermediate_taxa_list = []
     intermediate_others_list = []
@@ -120,7 +120,7 @@ def analyze_redlinks_section(site, section_title, abb_list):
                     section_short_name = match.group(4).strip()  # Text nach dem letzten ">>"
                     
                     if (section_short_name != ""):
-                        if not (section_short_name == "off" or section_short_name == "irr" or section_short_name == "ir2" or section_short_name == "zzz" or section_short_name == "zzt" or section_short_name == "zzs"):
+                        if section_short_name not in {"off", "offp", "irr", "ir2", "zzz", "zzt", "zzs"}:
                             # print("Name:", name, " cas_wd:", cas_wd, " Abkürzung:", section_short_name)
                             if ((section_short_name in abb_list) and (cas_wd != "")):
                                 redlink_list.append([section_short_name, format_missing_page_string(name, cas_wd)])
@@ -128,7 +128,7 @@ def analyze_redlinks_section(site, section_title, abb_list):
                                 print(f"Abkürzung für \"{section_short_name}\" existiert nicht oder Inhalt leer -> Zeile wird ignoriert.")
                                 filtered_lines.append(line)
                         elif (section_short_name == "ir2"):
-                            exclude_site_name_list.append(site_name + " - ")
+                            irrelevant_site_name_list.append(site_name + " - ")
                         elif (section_short_name == "zzz"):
                             intermediate_list.append(line)
                         elif (section_short_name == "zzt"):
@@ -149,7 +149,7 @@ def analyze_redlinks_section(site, section_title, abb_list):
         print(f"Fehler beim Analysieren der Seite: {e}")
         
     # print(redlink_list)
-    return {"redlink_list":redlink_list, "exclude_site_name_list":exclude_site_name_list, "intermediate_list": intermediate_list, "intermediate_taxa_list": intermediate_taxa_list, "intermediate_others_list": intermediate_others_list}
+    return {"redlink_list":redlink_list, "irrelevant_site_name_list":irrelevant_site_name_list, "intermediate_list": intermediate_list, "intermediate_taxa_list": intermediate_taxa_list, "intermediate_others_list": intermediate_others_list}
          
 
 def add_entry_to_section(text, section_title, new_entry):
@@ -421,7 +421,7 @@ if __name__ == "__main__":
     # Eintrag hinzufügen
     for redlink in redlink_list:
         new_entry = redlink[1]
-        if not (redlink[0] == "off" or redlink[0] == "irr"):
+        if redlink[0] not in {"off", "offp", "irr"}:
             section_title = abb_list[redlink[0]]["section"]
             # print("\"" + new_entry + "\" " + section_title + "\n")
             page_title = abb_list[redlink[0]]["page"]
@@ -431,15 +431,18 @@ if __name__ == "__main__":
             if (redlink[0] == "off"):
                 # print("\"" + new_entry + "\" " + redlink[0] + "\n")
                 updated_ignore_list_text = add_entry_to_exclusion_list(updated_ignore_list_text, "Ausschlussliste", new_entry)
+            elif (redlink[0] == "offp"):
+                # print("\"" + new_entry + "\" " + redlink[0] + "\n")
+                updated_ignore_list_text = add_entry_to_exclusion_list(updated_ignore_list_text, "Personen", new_entry)
             else:
                 # print("\"" + new_entry + "\" " + redlink[0] + "\n")
                 updated_irrelevant_list_text = add_entry_to_exclusion_list(updated_irrelevant_list_text, "Ausschlussliste", new_entry)
     
-    exclude_site_name_list = result_red["exclude_site_name_list"] + result_act["exclude_site_name_list"]
-    # print("exclude_site_name_list=", exclude_site_name_list)
-    for exclude_site_name in exclude_site_name_list:
-        # print(f"exclude_site_name = {exclude_site_name}")
-        updated_exclusion_list_text = add_entry_to_exclusion_list(updated_exclusion_list_text, "Ausschlussliste", exclude_site_name)
+    irrelevant_site_name_list = result_red["irrelevant_site_name_list"] + result_act["irrelevant_site_name_list"]
+    # print("irrelevant_site_name_list=", irrelevant_site_name_list)
+    for irrelevant_site_name in irrelevant_site_name_list:
+        # print(f"irrelevant_site_name = {irrelevant_site_name}")
+        updated_exclusion_list_text = add_entry_to_exclusion_list(updated_exclusion_list_text, "Ausschlussliste", irrelevant_site_name)
 
     for intermediate_entry in intermediate_list:
         # print(f"intermediate_entry = {intermediate_entry}")

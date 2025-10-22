@@ -88,12 +88,14 @@ def process_lines_preserve_headings(site, lines, substanzen_links, skip_headings
         if m_vor:
             artikel_raw = m_vor.group(1).strip()
             artikel_norm = normalize_title(site, artikel_raw, title_norm_cache)
+            # print(line)
             if artikel_norm in substanzen_links:
                 removed.append(artikel_norm)
                 remove_line = True
         else:
             # 2) Alle [[...]]-Links in der Zeile extrahieren und prüfen (wenn einer davon in substanzen_links ist => Zeile löschen)
             links = re_any_link.findall(line)
+            # print(line)
             for link_raw in links:
                 artikel_norm = normalize_title(site, link_raw, title_norm_cache)
                 if artikel_norm in substanzen_links:
@@ -131,7 +133,16 @@ def main():
     skip_headings = [
         "Top-Vorschläge zum Erstellen neuer Artikel",
         "Vorschläge mit hoher Priorität",
-        "Am häufigsten verlinkte fehlende Artikel"
+        "Am häufigsten verlinkte fehlende Artikel",
+        "Lebensmittelzusatzstoffe",
+        "Pflanzenschutzmittel",
+        "Chemische Verbindungen, Reagenzien, Reste und funktionelle Gruppen mit geläufigen Abkürzungen ([[Liste der Abkürzungen in der organischen Chemie|Liste]])",
+        "Benzodiazepine ([[Benzodiazepine|Liste]])",
+        "Zulassungspflichtige Stoffe ([[Verzeichnis der zulassungspflichtigen Stoffe nach Anhang XIV der REACH-Verordnung|Liste]])",
+        "Besonders besorgniserregenden Stoffe ([[Liste der besonders besorgniserregenden Stoffe|Liste]])",
+        "CoRAP-Stoffe ([[Liste der CoRAP-Stoffe|Liste]])",
+        "Chemikalienliste der Redaktion Chemie ([[Wikipedia:Redaktion Chemie/Chemikalienliste|Liste]])",
+        "Aus dem Nekrolog"
         # Weitere Überschriften hier hinzufügen
     ]
 

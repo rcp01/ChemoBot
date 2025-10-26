@@ -30,20 +30,24 @@ def load_short_list(site):
         for line in text.strip().split("\n"):
             # Regulärer Ausdruck
             # Beispiel: * arz->[[Wikipedia:Redaktion Chemie/Fehlende Substanzen#Arzneistoffe]]
-            pattern = r"^\* (.*?)->\[\[Wikipedia:Redaktion Chemie/Fehlende Substanzen#(.*?)\]\]$"
+            pattern = r"^\* (.*?)->\[\[(.*?)#(.*?)\]\]$"
 
             # Suche nach Übereinstimmungen
             match = re.match(pattern, line.strip())
 
             if match:
-                short_name = match.group(1).strip()  # Text nach "* " und vor dem ersten ">>"
-                section_name = match.group(2).strip()  # Text nach dem letzten ">>"
-                abb_list[short_name] = section_name;
+                short_name   = match.group(1).strip()  # Text nach "* " und vor dem ersten ">>"
+                page_name    = match.group(2).strip()  # Text nach "* " und vor dem ersten ">>"
+                section_name = match.group(3).strip()  # Text nach dem letzten ">>"
+                abb_list[short_name] = {
+                    "page": page_name,
+                    "section": section_name
+                }
                 
                 # print("shortname:", short_name, " Überschrift:", section_name)
             
         # print(abb_list)
-        
+                
     except Exception as e:
         print(f"Fehler beim Analysieren der Seite: {e}")
     
@@ -78,9 +82,9 @@ def check_if_redlink_exists(site, target_title):
         backlinks_list = list(backlinks)
 
         if backlinks_list:
-            print(f"Die Seite '{target_title}' existiert nicht, wird aber auf folgenden Seiten verlinkt:")
-            for page in backlinks_list:
-                print(f"- {page.title()}")
+            print(f"Die Seite '{target_title}' existiert nicht, wird aber auf {len(backlinks_list)} Seiten verlinkt.")
+            #for page in backlinks_list:
+            #    print(f"- {page.title()}")
             return True
         else:
             print(f"Die Seite '{target_title}' existiert nicht und wird im Artikelnamensraum nicht verlinkt.")
@@ -141,7 +145,8 @@ def analyze_intermediate_redlinks_section(site, section_title, abb_list):
                             if ((section_short_name in abb_list) and (cas_wd != "")):
                                 redlink_list.append([section_short_name, format_missing_page_string(name, cas_wd)])
                             else:
-                                print(f"Abkürzung für \"{section_short_name}\" existiert nicht oder Inhalt leer -> Zeile wird ignoriert.")
+                                if not "zzs" in section_short_name:
+                                    print(f"Abkürzung für \"{section_short_name}\" existiert nicht oder Inhalt leer -> Zeile wird ignoriert.")
                                 filtered_lines.append(line)
                         elif (section_short_name == "ir2"):
                             exclude_site_name_list.append(site_name + " - ")
@@ -359,19 +364,21 @@ if __name__ == "__main__":
 
     abb_list = load_short_list(site)
 
+    pages = {}
+    updated_pages = {}
+
     print("Load missing pages ...")
 
-    # Seitentitel fehlende Substanzen 
-    missing_pages_page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen"
-    # missing_pages_page_title = "Benutzer:ChemoBot/Tests/Fehlende Substanzen"
-
-    # Lade den aktuellen Inhalt der fehlende Substanz Seite
-    missing_pages_page = pywikibot.Page(site, missing_pages_page_title)
-    if not missing_pages_page.exists():
-       print(f"Die Seite {missing_pages_page_title} existiert nicht.")
-       exit(0)
-
-    updated_missing_pages_text = missing_pages_page.text
+    # Load all pages from abb_list
+    for abbrev, info in abb_list.items():
+        page_title = info["page"]
+        if page_title not in pages:
+            page = pywikibot.Page(site, page_title)
+            if not page.exists():
+                print(f"The page {page_title} does not exist!")
+                continue
+            pages[page_title] = page
+            updated_pages[page_title] = page.text
 
     print("Load ignore links list pages ...")
 
@@ -414,10 +421,10 @@ if __name__ == "__main__":
 
     print("Load redlinks ...")
 
+    result_red_others = analyze_intermediate_redlinks_section(site, "Sonstiges", abb_list) 
     result_red_chemie = analyze_intermediate_redlinks_section(site, "Chemie", abb_list) 
     result_red_bio = analyze_intermediate_redlinks_section(site, "Biologie", abb_list) 
-    result_red_others = analyze_intermediate_redlinks_section(site, "Sonstiges", abb_list) 
-
+    
     redlink_list = result_red_chemie["redlink_list"] + result_red_bio["redlink_list"] + result_red_others["redlink_list"] 
 
     print("Analyze redlinks ...")
@@ -426,9 +433,11 @@ if __name__ == "__main__":
     for redlink in redlink_list:
         new_entry = redlink[1]
         if redlink[0] not in {"off", "offp", "irr"}:
-            section_title = abb_list[redlink[0]]
+            section_title = abb_list[redlink[0]]["section"]
             # print("\"" + new_entry + "\" " + section_title + "\n")
-            updated_missing_pages_text = add_entry_to_section(updated_missing_pages_text, section_title, new_entry)
+            page_title = abb_list[redlink[0]]["page"]
+            section_title = abb_list[redlink[0]]["section"]
+            updated_pages[page_title] = add_entry_to_section(updated_pages[page_title], section_title, new_entry)
         else:
             if (redlink[0] == "off"):
                 # print("\"" + new_entry + "\" " + redlink[0] + "\n")
@@ -458,7 +467,15 @@ if __name__ == "__main__":
     # diff = difflib.unified_diff(irrelevant_list_page.text.splitlines(), updated_irrelevant_list_text.splitlines(), lineterm='')
     # print("\n".join(diff))
 
-    save_missing_articles_page(missing_pages_page, updated_missing_pages_text, missing_pages_page.text)
+    for page_title, updated_text in updated_pages.items():
+        original_text = pages[page_title].text
+        if updated_text != original_text:
+            pages[page_title].text = updated_text
+            pages[page_title].save(summary="Einträge aus Neuzugänge hinzugefügt.")
+            print(f"Einträge erfolgreich auf Seite {page_title} gespeichert.")
+        else:
+            print(f"Keine Änderungen an Seite {page_title} vorgenommen.")
+
     save_exclusion_list(updated_ignore_list_text, ignore_list_page.text, ignore_list_page)
     save_exclusion_list(updated_irrelevant_list_text, irrelevant_list_page.text, irrelevant_list_page)
     save_exclusion_list(updated_exclusion_list_text, exclusion_list_page.text, exclusion_list_page)

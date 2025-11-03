@@ -134,7 +134,7 @@ def main():
         "Top-Vorschläge zum Erstellen neuer Artikel",
         "Vorschläge mit hoher Priorität",
         "Am häufigsten verlinkte fehlende Artikel",
-        "Lebensmittelzusatzstoffe",
+        "Lebensmittelzusatzstoffe ([[Liste der Lebensmittelzusatzstoffe|Liste]])",
         "Pflanzenschutzmittel",
         "Chemische Verbindungen, Reagenzien, Reste und funktionelle Gruppen mit geläufigen Abkürzungen ([[Liste der Abkürzungen in der organischen Chemie|Liste]])",
         "Benzodiazepine ([[Benzodiazepine|Liste]])",

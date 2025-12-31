@@ -276,7 +276,7 @@ def main():
                     name = name.replace("{", "(").replace("}", ")")
                     name = name.replace("<sup>", "(").replace("</sup>", ")")
                     name = name.replace("<sub>", "(").replace("</sub>", ")")
-                    name = name.replace("<nowiki>", "").replace("</nowiki>", "").replace("<nowiki />", "")
+                    name = name.replace("<nowiki>", "").replace("</nowiki>", "").replace("<nowiki />", "").replace("<nowiki/>", "")
                     name = name.replace("<small>", "").replace("</small>", "")
                     name = name.replace("''", "")
                     wikidata = parameters['Wikidata']

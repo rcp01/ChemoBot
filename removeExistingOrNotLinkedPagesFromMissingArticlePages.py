@@ -9,6 +9,7 @@ PAGES = [
     "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Fehlende Taxa",
     "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Fehlende Journals",
     "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Fehlende Unternehmen",
+    "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Sonstige Themen"
 ]
 
 # Regex: Artikelname + optionale QID ([[:d:Qxxxxx|wd]])

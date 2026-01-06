@@ -619,8 +619,8 @@ if __name__ == "__main__":
     intermediate_list = get_intermediate_list(site)
 
     # Kategorien und Ausschlüsse
-    category_names = ["Kategorie:Chemische Verbindung nach Element", "Kategorie:Chemische Verbindung nach Strukturelement"]
-    exclusion_category_names = ["Kategorie:Mineral", "Kategorie:Chemikaliengruppe", "Kategorie:Wirkstoffgruppe"]
+    category_names = ["Kategorie:Chemische Verbindung nach Element", "Kategorie:Chemische Verbindung nach Strukturelement", "Kategorie:Mineral"]
+    exclusion_category_names = ["Kategorie:Chemikaliengruppe", "Kategorie:Wirkstoffgruppe"]
 
     # Analyse starten
     last_page_name= process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list, intermediate_list)

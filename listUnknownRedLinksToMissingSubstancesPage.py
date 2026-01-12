@@ -549,6 +549,17 @@ def extract_all_minerals(site, mainpage_title):
 
     return all_minerals
 
+def get_changedate_of_comment(page, comment_filter):
+
+    print(f"Änderungen auf '{page.title()}' mit Kommentar enthält: '{comment_filter}'\n")
+
+    for rev in page.revisions():
+        comment = rev.comment or ""
+        if comment_filter.lower() in comment.lower():
+            return rev.timestamp  # datetime, timezone-aware (UTC)  
+
+    return None
+
 def get_recently_changed_rotlinks_articles(site, page_title, section_title="Rotlinks", days=7):
     """
     Liest den Abschnitt 'Rotlinks' einer Seite aus, extrahiert alle verlinkten Artikelnamen
@@ -598,14 +609,21 @@ def get_recently_changed_rotlinks_articles(site, page_title, section_title="Rotl
 
     # Zeitpunktberechnung
     now = datetime.now(UTC)
-    seven_days_ago = now - timedelta(days=7)
-
+    
     start = now.strftime("%Y%m%d%H%M%S")          # neuester Zeitpunkt
-    end = seven_days_ago.strftime("%Y%m%d%H%M%S") # ältester Zeitpunkt    
+    # search for last complete update
+    end = get_changedate_of_comment(page, "Art=Artikel in Chemie-Kategorie")
+    
+    if end == None:
+        seven_days_ago = now - timedelta(days)
+        end = seven_days_ago.strftime("%Y%m%d%H%M%S") # ältester Zeitpunkt  
+    else:
+        # one day safety margin for runtime of script
+        end = end - timedelta(days=1)
 
-    print(f"Hole Seitenänderungen seit {start}, {end}")
+    print(f"Hole Seitenänderungen zwischen {start}, {end}")
 
-    # recentchanges abrufen (letzte X Tage)
+    # recentchanges abrufen (last X days)
     recent_titles = set()
     recent_changes = site.recentchanges(reverse=False, start=start, end=end, top_only=True, namespaces=[0])
 

@@ -11,6 +11,8 @@ import requests
 import mwparserfromhell
 from helperfunctions import translate_substance_name_to_englisch, human_readable_time_difference
 from typing import Optional
+import argparse
+from datetime import datetime, timedelta, timezone, UTC
 
 # Globale Variablen
 pages_checked = 0
@@ -255,68 +257,6 @@ def filter_pages(target_pages_gen, exclusion_pages_gen):
         if title not in exclusion_titles and not page.isRedirectPage():
             yield page
 
-
-def process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list, intermediate_list):
-    """
-    Analysiert alle Seiten in einer Kategorie und deren Unterkategorien, um Rotlinks zu finden.
-
-    Args:
-        category_names: Eine Liste von Zielkategorien.
-        exclusion_category_names: Eine Liste von Kategorien, die ausgeschlossen werden sollen.
-        site: Das pywikibot.Site-Objekt, das die Wikipedia-Site repräsentiert.
-    """
-    target_pages = []
-    for inclusion_category_name in category_names:
-        print(f"Seiten in Kategorie {inclusion_category_name} abrufen...")
-        target_pages = itertools.chain(target_pages, get_pages_in_category(inclusion_category_name, site))
-
-    exclusion_pages = []
-    for exclusion_category_name in exclusion_category_names:
-        print(f"Seiten aus Kategorie {exclusion_category_name} ausschließen...")
-        exclusion_pages = itertools.chain(exclusion_pages, get_pages_in_category(exclusion_category_name, site))
-        
-    print("Filterung der Zielseiten...")
-    filtered_pages = filter_pages(target_pages, exclusion_pages)
-
-    start_time = time.time()  # Startzeit der Schleife
-    interval = 60  # Intervall in Sekunden
-    count = 0
-    redlink_count = 0
-    last_page = ""
-
-    print("Analyse der Seiten...")
-    for page in filtered_pages:
-        global pages_checked, rotlinks
-        pages_checked += 1
-
-        if time.time() - start_time >= interval:
-            start_time = time.time()  # Reset der Startzeit für die nächste Nachricht
-        print(f"{pages_checked}. Anzahl bisheriger unbekannter Rotlinks: {redlink_count}, aktuelle Seite: {page.title()}")
-
-        if page.namespace() == 0 and not page.isRedirectPage() and not page.title() in exclusion_list:  # Nur Artikel im Hauptnamensraum analysieren
-            try:
-                red_links = find_red_links(page)
-                for red_link in red_links:
-                    if (red_link not in missing_substances_list):
-                        if (red_link not in ignore_list and red_link not in intermediate_list):
-                            if red_link not in rotlinks:
-                                rotlinks[red_link] = []
-                                redlink_count = redlink_count + 1
-                            title = "[[" + page.title() + "]]"
-                            if title not in rotlinks[red_link]:
-                                rotlinks[red_link].append(title)
-                            #if (redlink_count >= 500):
-                            #    return page.title()
-                        # else:
-                        #     print(red_link + " bereits auf Ausschlussseite")
-                    # else:
-                    #    print(red_link + " bereits auf fehlender Seite")
-            except Exception as e:
-                traceback.print_exc()
-                print(f"Fehler beim Verarbeiten der Seite {page.title()}: {e}")
-        last_page = page.title()
-    return last_page
-
 def search_wikidata_number(cas_number):
     url = f"https://tools.wmflabs.org/wikidata-todo/resolver.php?prop=231&value={cas_number}"  # Beispiel für eine umleitende URL
     response = requests.get(url, allow_redirects=True)
@@ -366,8 +306,8 @@ def search_cas_number(chemical_name):
                 }
 
             try:
-                response = requests.get(url, headers=headers)
-                response = requests.get(url, headers=headers) # retry
+                response = requests.get(url, headers=headers,timeout=5)
+                response = requests.get(url, headers=headers,timeout=5) # retry
             except Exception as e:
                 response.status_code = 408
 
@@ -385,7 +325,7 @@ def search_cas_number(chemical_name):
     else:
         print(f"Fehler: {response.status_code} für {chemical_name} {url}")
 
-    print(f"\"{chemical_name_org}\" -> \"{chemical_name}\" : None")
+    #print(f"\"{chemical_name_org}\" -> \"{chemical_name}\" : None")
     return ""
 
 TAXON_QID = "Q16521"
@@ -485,11 +425,16 @@ def classify_taxon(name: str, language: str = "de") -> Optional[tuple[str, Optio
 
     return None, None
     
-def update_wikipedia_page(site, rotlinks, last_page_name):
+def update_wikipedia_page(site, rotlinks, last_page_name, reason):
+
+    global pages_checked
+
     page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Neuzugänge"
     #page_title = "Benutzer:ChemoBot/Tests/Neuzugänge"
     page = pywikibot.Page(site, page_title)
-    
+ 
+    print(f'Automatische Aktualisierung des Abschnitts "Rotlinks" (letzte analysierte Seite: {pages_checked}. {last_page_name}, Anzahl Rotlinks={len(rotlinks)})')
+ 
     try:
         text = page.text
         section_pattern = r'(==+\s*Rotlinks\s*==+)(.*?)(?=\n==|\Z)'
@@ -503,27 +448,28 @@ def update_wikipedia_page(site, rotlinks, last_page_name):
         new_section_content = "\nAktuelle Rotlinks im Bereich Chemie, die nicht auf [[Wikipedia:Redaktion Chemie/Fehlende Substanzen]] und nicht in der [[Wikipedia:Redaktion Chemie/Fehlende Substanzen/Ausschlussliste]] bzw. [[Wikipedia:Redaktion Chemie/Fehlende Substanzen/Varianten]] genannt sind:\n\n"
         new_section_content += "Format ist <Rotlinklemmaname> >> <von Seiten verlinkt> >> <CAS-Nummer>, <wikidata eintrag> >> Abkürzung Kategorie\n"
 
+        print(f"Number of Redlinks = {len(sorted(rotlinks.keys()))}")
+
         for red_link in sorted(rotlinks.keys()):
+
+            red_link = red_link.strip()
             pages = ", ".join(sorted(rotlinks[red_link]))
             addon = ""
             addon2 = ""
-
-            # preserve old cas if it is known
-            try:
-                escaped_red_link = re.escape(red_link)
-                match = re.search(fr'\* \[\[{escaped_red_link}\]\] >> .*? >>\s*(.*?)\s*>>(?:\s*([A-Za-z]+))?\s*$',section_content,re.DOTALL)
-
-            except Exception as e:
-                print(f"Fehler beim Verarbeiten der Seite {page.title()}: {e}")
-                print(f"red_link = {red_link}")
-                print(f"section_content = {section_content}")
-                match = None
-
-            if match and match.group(1).strip() != "":
-                addon = f"{match.group(1).strip()}"
+            
+            # search old redlink with cas/wikidata and abbr. if it is known
+            escaped = re.escape(f'[[{red_link}]]')
+            pattern = rf'\* {escaped}\s*>>.*?>>\s*(.*?)\s*>>\s*([A-Za-z]+)?\s*'
+            match = re.search(pattern, section_content)
+                                
+            if match:
+                # preserve old
+                if match.group(1) != None and match.group(1).strip() != "":
+                    addon = match.group(1).strip()
                 if match.group(2) != None and match.group(2).strip() != "":
-                    addon2 = match.group(2)
+                    addon2 = match.group(2).strip()
             else:
+                # new entry, try to guess entries
                 cas = search_cas_number(red_link)
                 if (cas != ""):
                     wikidata = search_wikidata_number(cas)
@@ -535,16 +481,18 @@ def update_wikipedia_page(site, rotlinks, last_page_name):
                     wikidata, group = classify_taxon(red_link)
                     if (wikidata and wikidata != ""):
                         addon = f"{wikidata}"
-                    if (group):
+                    if (group and addon2 == ""):
                         addon2 = group
-            new_section_content += f"* [[{red_link}]] >> {pages} >> {addon} >>{addon2}\n"
-               
+
+            print(f"redlink = {red_link}, pages= {pages}, CAS/Wikidata= {addon}, area= {addon2}")
+            new_line = f"* [[{red_link}]] >> {pages} >> {addon} >>{addon2}\n"
+            new_section_content += new_line
+
         new_text = text.replace(section_content, new_section_content)
         
         if new_text != text:
-            global pages_checked
             page.text = new_text
-            page.save(f'Automatische Aktualisierung des Abschnitts "Rotlinks" (letzte analysierte Seite: {pages_checked}. {last_page_name}, Anzahl Rotlinks={len(rotlinks)})')
+            page.save(f'Automatische Aktualisierung des Abschnitts "Rotlinks" (letzte analysierte Seite: {pages_checked}. {last_page_name}, Anzahl Rotlinks={len(rotlinks)}, Art={reason})')
             print(f'Seite {page_title} aktualisiert.')
         else:
             print("Keine Änderungen notwendig.")
@@ -601,8 +549,230 @@ def extract_all_minerals(site, mainpage_title):
 
     return all_minerals
 
+def get_recently_changed_rotlinks_articles(site, page_title, section_title="Rotlinks", days=7):
+    """
+    Liest den Abschnitt 'Rotlinks' einer Seite aus, extrahiert alle verlinkten Artikelnamen
+    zwischen dem ersten und zweiten '>>', prüft, ob sie in den letzten 'days' Tagen über recentchanges
+    geändert wurden, und gibt den Status aus.
+    """
+    
+    print(f"Öffne Seite {page_title}")
+    
+    page = pywikibot.Page(site, page_title)
+    text = page.text
 
+    print("Analysiere Seiteninhalt")
+
+    # Abschnitt finden
+    section_regex = rf"==\s*{re.escape(section_title)}\s*==(.+?)(?:(?:==)|\Z)"
+    match = re.search(section_regex, text, re.DOTALL)
+    if not match:
+        print(f"Abschnitt '{section_title}' nicht gefunden.")
+        return []
+
+    section_text = match.group(1)
+
+    # Alle Zeilen extrahieren
+    lines = [line.strip() for line in section_text.splitlines() if line.strip().startswith("*")]
+
+    # Alle verlinkten Artikel sammeln
+    article_set = set()
+    current_list = {}
+    for line in lines:
+        parts = line.split(">>")
+        if len(parts) > 2:
+            linked_part = parts[1]
+            redlinks = re.findall(r"\[\[([^\]|]+)", parts[0])
+            links = re.findall(r"\[\[([^\]|]+)", parts[1])
+            article_set.update(links)
+            if not redlinks:
+                printf(f"Kann die folgende Zeile nicht analysieren: {line}")
+                continue
+            redlink = redlinks[0]
+            for target in links:
+                if target not in current_list:
+                    current_list[target] = []
+                current_list[target].append(redlink)
+                    
+    print(f"{len(article_set)} Seiten gefunden")
+
+    # Zeitpunktberechnung
+    now = datetime.now(UTC)
+    seven_days_ago = now - timedelta(days=7)
+
+    start = now.strftime("%Y%m%d%H%M%S")          # neuester Zeitpunkt
+    end = seven_days_ago.strftime("%Y%m%d%H%M%S") # ältester Zeitpunkt    
+
+    print(f"Hole Seitenänderungen seit {start}, {end}")
+
+    # recentchanges abrufen (letzte X Tage)
+    recent_titles = set()
+    recent_changes = site.recentchanges(reverse=False, start=start, end=end, top_only=True, namespaces=[0])
+
+    print(f"geänderte Seiten abgerufen")
+    
+    for idx, change in enumerate(recent_changes, start=1):
+        recent_titles.add(change['title'])
+        if idx % 10000 == 1:
+            print(f"{idx}. changes, current = {change['title']}, {change['timestamp']}")
+
+    print(f"{len(recent_titles)} geänderte Seiten")
+
+    # Ausgabe mit Status
+    younger_articles = []
+    unchanged_article_redlinks = {}
+    for idx, title in enumerate(sorted(article_set), start=1):
+        if title in recent_titles:
+            status = "neu (<=7 Tage)"
+            younger_articles.append(title)
+        else:
+            unchanged_article_redlinks[title] = current_list[title]
+            status = f"älter als {days} Tage"
+
+        print(f"{idx}/{len(article_set)} {title}: {status}")
+
+    return younger_articles, unchanged_article_redlinks
+
+def process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list, intermediate_list):
+    """
+    Analysiert alle Seiten in einer Kategorie und deren Unterkategorien, um Rotlinks zu finden.
+
+    Args:
+        category_names: Eine Liste von Zielkategorien.
+        exclusion_category_names: Eine Liste von Kategorien, die ausgeschlossen werden sollen.
+        site: Das pywikibot.Site-Objekt, das die Wikipedia-Site repräsentiert.
+    """
+    target_pages = []
+    for inclusion_category_name in category_names:
+        print(f"Seiten in Kategorie {inclusion_category_name} abrufen...")
+        target_pages = itertools.chain(target_pages, get_pages_in_category(inclusion_category_name, site))
+
+    exclusion_pages = []
+    for exclusion_category_name in exclusion_category_names:
+        print(f"Seiten aus Kategorie {exclusion_category_name} ausschließen...")
+        exclusion_pages = itertools.chain(exclusion_pages, get_pages_in_category(exclusion_category_name, site))
+        
+    print("Filterung der Zielseiten...")
+    filtered_pages = filter_pages(target_pages, exclusion_pages)
+
+    redlink_count = 0
+    last_page = ""
+
+    print("Analyse der Seiten...")
+    for page in filtered_pages:
+        global pages_checked, rotlinks
+        pages_checked += 1
+
+        print(f"{pages_checked}. Anzahl bisheriger unbekannter Rotlinks: {redlink_count}, aktuelle Seite: {page.title()}")
+
+        if page.namespace() == 0 and not page.isRedirectPage() and not page.title() in exclusion_list:  # Nur Artikel im Hauptnamensraum analysieren
+            try:
+                red_links = find_red_links(page)
+                for red_link in red_links:
+                    if (red_link not in missing_substances_list):
+                        if (red_link not in ignore_list and red_link not in intermediate_list):
+                            if red_link not in rotlinks:
+                                rotlinks[red_link] = []
+                                redlink_count = redlink_count + 1
+                            title = "[[" + page.title() + "]]"
+                            if title not in rotlinks[red_link]:
+                                rotlinks[red_link].append(title)
+                            #if (redlink_count >= 500):
+                            #    return page.title()
+                        # else:
+                        #     print(red_link + " bereits auf Ausschlussseite")
+                    # else:
+                    #    print(red_link + " bereits auf fehlender Seite")
+            except Exception as e:
+                traceback.print_exc()
+                print(f"Fehler beim Verarbeiten der Seite {page.title()}: {e}")
+        last_page = page.title()
+    return last_page
+
+def process_current_list(site, missing_substances_list, ignore_list, exclusion_list, intermediate_list):
+
+    print("Analyse der Seiten...")
+
+    younger, unchanged_article_redlinks = get_recently_changed_rotlinks_articles(
+        site,
+        "Wikipedia:Redaktion Chemie/Fehlende_Substanzen/Neuzugänge",
+        section_title="Rotlinks",
+        days=7
+    )
+
+    redlink_count = 0
+    last_page = ""
+    global rotlinks, pages_checked
+
+    for page_title, red_links in unchanged_article_redlinks.items():
+        pages_checked += 1
+        #print(f"{pages_checked} / {len(rotlinks)} page_title = {page_title}, red_links = {red_links}")
+        for red_link in red_links:
+            if (red_link not in missing_substances_list):
+                if (red_link not in ignore_list and red_link not in intermediate_list):
+                    if red_link not in rotlinks:
+                        rotlinks[red_link] = []
+                        redlink_count = redlink_count + 1
+                    title = "[[" + page_title + "]]"
+                    if title not in rotlinks[red_link]:
+                        rotlinks[red_link].append(title)
+        print(f"{pages_checked}. Anzahl bisheriger bekannter Rotlinks: {redlink_count}, aktuelle Seite: {page_title}")
+
+    print(f"Artikel jünger als 7 Tage: {len(younger)}")
+
+    for i, page_title in enumerate(younger, start=1):
+
+        pages_checked += 1
+
+        page = pywikibot.Page(site, page_title)
+
+        print(f"{pages_checked}. Anzahl bisheriger unbekannter Rotlinks: {redlink_count}, aktuelle Seite: {page.title()}")
+
+        if page.namespace() == 0 and not page.isRedirectPage() and not page.title() in exclusion_list:  # Nur Artikel im Hauptnamensraum analysieren
+            try:
+                red_links = find_red_links(page)
+                for red_link in red_links:
+                    if (red_link not in missing_substances_list):
+                        if (red_link not in ignore_list and red_link not in intermediate_list):
+                            if red_link not in rotlinks:
+                                rotlinks[red_link] = []
+                                redlink_count = redlink_count + 1
+                            title = "[[" + page.title() + "]]"
+                            if title not in rotlinks[red_link]:
+                                rotlinks[red_link].append(title)
+            except Exception as e:
+                traceback.print_exc()
+                print(f"Fehler beim Verarbeiten der Seite {page.title()}: {e}")
+        last_page = page.title()
+
+    return last_page
+    
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="Chemobot Update Script")
+
+    # Optionaler Flag
+    parser.add_argument(
+        "--only_update_list",
+        action="store_true",
+        help="Nur die Liste aktualisieren, keine neuen oder geänderten Artikel verarbeiten"
+    )
+
+    # Optionaler Flag
+    parser.add_argument(
+        "--update_new_and_changed_and_listed",
+        action="store_true",
+        help="Neue, geänderte und bereits gelistete Artikel aktualisieren"
+    )
+
+    # Argumente parsen
+    args = parser.parse_args()
+
+    # Beispiel-Logik
+    if args.only_update_list and args.update_new_and_changed_and_listed:
+        print("Beide Flags sind gesetzt – das wird nicht unterstützt.")
+        exit(1)
+
     start_time = time.time()
     site = pywikibot.Site('de', 'wikipedia')
 
@@ -624,12 +794,24 @@ if __name__ == "__main__":
     # Kategorien und Ausschlüsse
     category_names = ["Kategorie:Chemische Verbindung nach Element", "Kategorie:Chemische Verbindung nach Strukturelement", "Kategorie:Mineral"]
     exclusion_category_names = ["Kategorie:Chemikaliengruppe", "Kategorie:Wirkstoffgruppe"]
-
-    # Analyse starten
-    last_page_name= process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list, intermediate_list)
-
+    last_page_name = ""
+    
+    # Prüfen, welche Flags gesetzt wurden
+    if args.only_update_list:
+        print("Nur die Liste wird aktualisiert.")
+        reason = "geänderte Artikel aus Neuzugänge"
+        last_page_name= process_current_list(site, missing_substances_list, ignore_list, exclusion_list, intermediate_list)
+    elif args.update_new_and_changed_and_listed:
+        print("Neue, geänderte und gelistete Artikel werden aktualisiert.")
+        print("Suchart aktuell noch nicht unterstützt")
+        exit(0)
+    else:
+        # Analyse starten
+        reason = "Artikel in Chemie-Kategorie"
+        last_page_name= process_category(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list, intermediate_list)
+    
     # Rotlinks speichern
-    update_wikipedia_page(site, rotlinks, last_page_name)
+    update_wikipedia_page(site, rotlinks, last_page_name, reason)
 
     #save_red_links_to_file("rotlinks.txt", rotlinks, last_page_name)
 

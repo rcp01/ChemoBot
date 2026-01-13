@@ -620,6 +620,7 @@ def get_recently_changed_rotlinks_articles(site, page_title, section_title="Rotl
     else:
         # one day safety margin for runtime of script
         end = end - timedelta(days=1)
+        end = end.strftime("%Y%m%d%H%M%S")
 
     print(f"Hole Seitenänderungen zwischen {start}, {end}")
 

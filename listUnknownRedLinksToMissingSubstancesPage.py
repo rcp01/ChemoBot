@@ -217,7 +217,7 @@ def find_red_links(page):
         return []
 
 
-def get_pages_in_category(category_name, site):
+def get_pages_in_category(category_name, site, content=True):
     """
     Ruft alle Seiten in einer Kategorie und deren Unterkategorien ab.
 
@@ -229,12 +229,13 @@ def get_pages_in_category(category_name, site):
         Ein Generator für Seiten in der Kategorie und deren Unterkategorien.
     """
     category = pywikibot.Category(site, category_name)
-    ret = pagegenerators.CategorizedPageGenerator(category, recurse=True)
+    ret = pagegenerators.CategorizedPageGenerator(category, recurse=True, content=False)
     
     count = sum(1 for _ in ret)
     print(f"Anzahl der Seiten in der Kategorie: {count}")
+    print(f"content: {content}")
     
-    ret = pagegenerators.CategorizedPageGenerator(category, recurse=True)
+    ret = pagegenerators.CategorizedPageGenerator(category, recurse=True, content=content)
 
     return ret
 
@@ -560,7 +561,150 @@ def get_changedate_of_comment(page, comment_filter):
 
     return None
 
-def get_recently_changed_rotlinks_articles(site, page_title, section_title="Rotlinks", days=7):
+def get_all_category_members(site, cat_title):
+    visited_cats = set()
+    pages = set()
+
+    def walk_category(cat):
+        if cat in visited_cats:
+            return
+        visited_cats.add(cat)
+
+        params = {
+            "action": "query",
+            "list": "categorymembers",
+            "cmtitle": cat,
+            "cmlimit": "max",
+        }
+
+        while True:
+            data = site.simple_request(**params).submit()
+            members = data["query"]["categorymembers"]
+
+            for m in members:
+                title = m["title"]
+                ns = m["ns"]
+
+                # ns=14 → Kategorie
+                if ns == 14:
+                    walk_category(title)
+                else:
+                    pages.add(title)
+
+            if "continue" in data:
+                params.update(data["continue"])
+            else:
+                break
+
+    start_time = time.time()
+
+    walk_category(cat_title)
+    
+    print(f"{len(pages)} in Kategorie {cat_title} mit {len(visited_cats)} Unterkategorien in {human_readable_time_difference(start_time, time.time())}")
+    
+    return pages
+
+def get_recently_changed_new_articles_in_list(site, page_title, section_title, chemistry_article_list, days):
+    """
+    Liest den Abschnitt 'Rotlinks' einer Seite aus, extrahiert alle verlinkten Artikelnamen
+    zwischen dem ersten und zweiten '>>', prüft, ob sie in den letzten 'days' Tagen über recentchanges
+    geändert wurden, und gibt den Status aus.
+    """
+    
+    print(f"Öffne Seite {page_title}")
+    
+    page = pywikibot.Page(site, page_title)
+    text = page.text
+
+    print("Analysiere Seiteninhalt")
+
+    # Abschnitt finden
+    section_regex = rf"==\s*{re.escape(section_title)}\s*==(.+?)(?:(?:==)|\Z)"
+    match = re.search(section_regex, text, re.DOTALL)
+    if not match:
+        print(f"Abschnitt '{section_title}' nicht gefunden.")
+        return []
+
+    section_text = match.group(1)
+
+    # Alle Zeilen extrahieren
+    lines = [line.strip() for line in section_text.splitlines() if line.strip().startswith("*")]
+
+    # Alle verlinkten Artikel sammeln
+    article_set = set()
+    current_list = {}
+    for line in lines:
+        parts = line.split(">>")
+        if len(parts) > 2:
+            linked_part = parts[1]
+            redlinks = re.findall(r"\[\[([^\]|]+)", parts[0])
+            links = re.findall(r"\[\[([^\]|]+)", parts[1])
+            article_set.update(links)
+            if not redlinks:
+                printf(f"Kann die folgende Zeile nicht analysieren: {line}")
+                continue
+            redlink = redlinks[0]
+            for target in links:
+                if target not in current_list:
+                    current_list[target] = []
+                current_list[target].append(redlink)
+                    
+    print(f"{len(article_set)} Seiten gefunden")
+
+    # Zeitpunktberechnung
+    now = datetime.now(UTC)
+    
+    start = now.strftime("%Y%m%d%H%M%S")          # neuester Zeitpunkt
+    # search for last complete update
+    end = get_changedate_of_comment(page, "Art=Artikel in Chemie-Kategorie")
+    
+    if end == None:
+        seven_days_ago = now - timedelta(days)
+        end = seven_days_ago.strftime("%Y%m%d%H%M%S") # ältester Zeitpunkt  
+    else:
+        # one day safety margin for runtime of script
+        end = end - timedelta(days=1)
+        end = end.strftime("%Y%m%d%H%M%S")
+
+    print(f"Hole Seitenänderungen zwischen {start}, {end}")
+
+    # recentchanges abrufen (last X days)
+    recent_titles = set()
+    recent_changes = site.recentchanges(reverse=False, start=start, end=end, top_only=True, namespaces=[0])
+
+    print(f"geänderte Seiten abgerufen")
+    
+    for idx, change in enumerate(recent_changes, start=1):
+        recent_titles.add(change['title'])
+        if idx % 10000 == 1:
+            print(f"{idx}. changes, current = {change['title']}, {change['timestamp']}")
+
+    print(f"{len(recent_titles)} geänderte Seiten")
+
+    # Check for changed sites in redlink list of articels
+    younger_articles = []
+    unchanged_article_redlinks = {}
+    for idx, title in enumerate(sorted(article_set), start=1):
+        if title in recent_titles:
+            status = "neu (<=7 Tage)"
+            younger_articles.append(title)
+            print(f"{idx}/{len(article_set)} {title}: {status}")
+        else:
+            unchanged_article_redlinks[title] = current_list[title]
+
+
+    # Check for changed sites in list of all chemistry cat articles (could be new or changed)
+    for idx, title in enumerate(sorted(chemistry_article_list), start=1):
+        if title in recent_titles and title not in younger_articles:
+            status = "neu (<=7 Tage)"
+            younger_articles.append(title)
+            print(f"{idx}/{len(chemistry_article_list)} {title}: {status}")
+
+
+    return younger_articles, unchanged_article_redlinks
+
+
+def get_recently_changed_rotlinks_articles(site, page_title, section_title, days):
     """
     Liest den Abschnitt 'Rotlinks' einer Seite aus, extrahiert alle verlinkten Artikelnamen
     zwischen dem ersten und zweiten '>>', prüft, ob sie in den letzten 'days' Tagen über recentchanges
@@ -669,7 +813,7 @@ def process_category(category_names, exclusion_category_names, site, missing_sub
     exclusion_pages = []
     for exclusion_category_name in exclusion_category_names:
         print(f"Seiten aus Kategorie {exclusion_category_name} ausschließen...")
-        exclusion_pages = itertools.chain(exclusion_pages, get_pages_in_category(exclusion_category_name, site))
+        exclusion_pages = itertools.chain(exclusion_pages, get_pages_in_category(exclusion_category_name, site, content=False))
         
     print("Filterung der Zielseiten...")
     filtered_pages = filter_pages(target_pages, exclusion_pages)
@@ -707,6 +851,80 @@ def process_category(category_names, exclusion_category_names, site, missing_sub
                 print(f"Fehler beim Verarbeiten der Seite {page.title()}: {e}")
         last_page = page.title()
     return last_page
+
+def process_current_new(category_names, exclusion_category_names, site, chemical_article_list, ignore_list, exclusion_list, intermediate_list):
+
+    print("Analyse der Seiten...")
+
+    target_pages = []
+    for inclusion_category_name in category_names:
+        print(f"Seiten in Kategorie {inclusion_category_name} abrufen...")
+        target_pages += get_all_category_members(site, inclusion_category_name)
+
+    exclusion_pages = []
+    for exclusion_category_name in exclusion_category_names:
+        print(f"Seiten aus Kategorie {exclusion_category_name} ausschließen...")
+        exclusion_pages += get_all_category_members(site, exclusion_category_name)
+
+    print("Filterung der Zielseiten...")
+    filtered_pages = list(set(target_pages) - set(exclusion_pages))
+    print(len(filtered_pages))
+    
+    younger, unchanged_article_redlinks = get_recently_changed_new_articles_in_list(
+        site,
+        "Wikipedia:Redaktion Chemie/Fehlende_Substanzen/Neuzugänge",
+        "Rotlinks",
+        filtered_pages,
+        7
+    )
+
+    redlink_count = 0
+    last_page = ""
+    global rotlinks, pages_checked
+
+    for page_title, red_links in unchanged_article_redlinks.items():
+        pages_checked += 1
+        #print(f"{pages_checked} / {len(rotlinks)} page_title = {page_title}, red_links = {red_links}")
+        for red_link in red_links:
+            if (red_link not in chemical_article_list):
+                if (red_link not in ignore_list and red_link not in intermediate_list):
+                    if red_link not in rotlinks:
+                        rotlinks[red_link] = []
+                        redlink_count = redlink_count + 1
+                    title = "[[" + page_title + "]]"
+                    if title not in rotlinks[red_link]:
+                        rotlinks[red_link].append(title)
+        print(f"{pages_checked}. Anzahl bisheriger bekannter Rotlinks: {redlink_count}, aktuelle Seite: {page_title}")
+
+    print(f"Artikel jünger als 7 Tage: {len(younger)}")    
+
+    for i, page_title in enumerate(younger, start=1):
+
+        pages_checked += 1
+
+        page = pywikibot.Page(site, page_title)
+
+        print(f"{pages_checked}. Anzahl bisheriger unbekannter Rotlinks: {redlink_count}, aktuelle Seite: {page.title()}")
+
+        if page.namespace() == 0 and not page.isRedirectPage() and not page.title() in exclusion_list:  # Nur Artikel im Hauptnamensraum analysieren
+            try:
+                red_links = find_red_links(page)
+                for red_link in red_links:
+                    if (red_link not in missing_substances_list):
+                        if (red_link not in ignore_list and red_link not in intermediate_list):
+                            if red_link not in rotlinks:
+                                rotlinks[red_link] = []
+                                redlink_count = redlink_count + 1
+                            title = "[[" + page.title() + "]]"
+                            if title not in rotlinks[red_link]:
+                                rotlinks[red_link].append(title)
+            except Exception as e:
+                traceback.print_exc()
+                print(f"Fehler beim Verarbeiten der Seite {page.title()}: {e}")
+        last_page = page.title()
+
+    return last_page
+
 
 def process_current_list(site, missing_substances_list, ignore_list, exclusion_list, intermediate_list):
 
@@ -821,9 +1039,9 @@ if __name__ == "__main__":
         reason = "geänderte Artikel aus Neuzugänge"
         last_page_name= process_current_list(site, missing_substances_list, ignore_list, exclusion_list, intermediate_list)
     elif args.update_new_and_changed_and_listed:
+        reason = "geänderte Artikel aus Neuzugänge und Chemie Kategorie"
         print("Neue, geänderte und gelistete Artikel werden aktualisiert.")
-        print("Suchart aktuell noch nicht unterstützt")
-        exit(0)
+        last_page_name= process_current_new(category_names, exclusion_category_names, site, missing_substances_list, ignore_list, exclusion_list, intermediate_list)
     else:
         # Analyse starten
         reason = "Artikel in Chemie-Kategorie"

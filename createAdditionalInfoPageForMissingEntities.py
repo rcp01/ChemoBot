@@ -151,7 +151,7 @@ def main(input_page_title, output_page_title, wikidata_description):
     print("Start ... ")
     site = pywikibot.Site('de', 'wikipedia')
 
-    print("Bearbeite Einträge von {input_page_title}")
+    print(f"Bearbeite Einträge von {input_page_title}")
     entities = get_missing_entities(site, input_page_title)
     
     results = defaultdict(lambda: {"entities": [], "links": [], "template_links": [], "searchcount": [], "has_german": False, "german_name": "", "langs": -1})

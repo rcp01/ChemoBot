@@ -7,6 +7,35 @@ from collections import defaultdict
 unknown_wikidata = "Q000000"
 unknown_cas = "-"
 
+def load_cas_numbers(filename, unique=True):
+    """
+    Liest eine Textdatei und extrahiert alle CAS-Nummern.
+
+    Args:
+        filename (str): Pfad zur Textdatei
+        unique (bool): True → Duplikate entfernen
+
+    Returns:
+        list[str]: Liste gefundener CAS-Nummern
+    """
+    
+    print(f"Lade CAS aus {filename}")
+    
+    cas_pattern = re.compile(r"\b\d{2,7}-\d{2}-\d\b")
+
+    found = []
+
+    with open(filename, "r", encoding="utf-8") as f:
+        for line in f:
+            found.extend(cas_pattern.findall(line))
+            
+    ret = sorted(set(found)) if unique else found
+
+    print(f"{len(ret)} CAS Nummern gefunden")
+
+    return ret
+
+
 def get_missing_substances(site, page_title):
     """Extrahiert die Liste der fehlenden Substanzen von der Wikipedia-Seite."""
     page = pywikibot.Page(site, page_title)
@@ -132,6 +161,10 @@ def update_wikipedia_page(site, results):
     
     counter = 1
     
+    GESTIS_List = load_cas_numbers("GESTIS.txt")    
+    EPA_HPV = load_cas_numbers("EPA_HPV.txt")
+    OECD_HPV = load_cas_numbers("OECD_HPV.txt")
+    
     # Trenne den vorhandenen Inhalt in den Teil vor "Zusatzinformationen" und den Rest
     match = re.search(r'(^.*?)(==\s*Zusatzinformationen\s*==)', content, re.DOTALL)
     pre_text = match.group(1).strip() if match else ""
@@ -159,7 +192,14 @@ def update_wikipedia_page(site, results):
             wikidata_text = f"und in [[:d:{wikidata}|{langs_count}]] anderen Sprachen {german_text}vorhanden"
         
         if len(cas_nr)>1:
-            cas_nr = "{{CASRN|"+cas_nr+"}}"
+            AddOn = ""
+            if cas_nr in GESTIS_List:
+                AddOn += ", in GESTIS"
+            if cas_nr in EPA_HPV:
+                AddOn += ", in EPA_HPV"
+            if cas_nr in OECD_HPV:
+                AddOn += ", in OECD_HPV"
+            cas_nr = "{{CASRN|"+cas_nr+"}}" + AddOn
         if len(data["substances"]) == 1:
             substance = data["substances"][0]
             links = data['links'][0]

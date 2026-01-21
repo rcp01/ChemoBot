@@ -4,6 +4,7 @@ import re
 import itertools
 import time
 import traceback
+import requests
 
 pages_checked = 0
 pages_changed = 0
@@ -56,8 +57,29 @@ def filter_pages(target_pages_gen, exclusion_pages_gen):
         if title not in exclusion_titles and not page.isRedirectPage() and (title not in special_excludes):
             yield page
 
+def get_external_links(page: pywikibot.Page):
+    site = page.site
+    api_url = site.base_url(site.apipath())
 
-def process_category(category_names, exclusion_category_names, external_links, site):
+    headers = {
+        "User-Agent": "ChemoBot/1.0 (https://de.wikipedia.org/wiki/Benutzer:ChemoBot)"
+    }
+
+    params = {
+        "action": "parse",
+        "page": page.title(),
+        "prop": "externallinks",
+        "format": "json"
+    }
+
+    response = requests.get(api_url, params=params, headers=headers)
+    response.raise_for_status()
+
+    data = response.json()
+    return data.get("parse", {}).get("externallinks", [])
+
+
+def process_category(category_names, exclusion_category_names, predatory_links, site):
     """
     Adds text to all pages in a category and its subcategories.
 
@@ -100,11 +122,14 @@ def process_category(category_names, exclusion_category_names, external_links, s
         pages_checked = pages_checked + 1
         if page.namespace() == 0 and not page.isRedirectPage():  # Only process articles (namespace 0)
             try:
+                external_links = get_external_links(page)
+
                 page_text = page.text
                 # print(f"Überprüfe Seite: {page.title()}")
-                for link in external_links:
-                    if link in page_text:
-                        print(f"  -> Link gefunden: {link} in {page.title()}")
+                for ext in external_links:
+                    for pred in predatory_links:
+                        if pred in ext:
+                            print(f"  -> Link gefunden: {pred} in {page.title()}")
                     # else:
                     #    print(f"  -> Link NICHT gefunden: {link}")
 
@@ -150,15 +175,15 @@ def main():
     site = pywikibot.Site('de', 'wikipedia')  # Achte darauf, dass du 'de' und 'wikipedia' korrekt konfigurierst
 
     # Extrahiere die externen Links von der Seite "Benutzer:Rjh/predatory"
-    external_links = extract_external_links(site, "Benutzer:Rjh/predatory")
-    print(f"Gefundene externe Links: {len(external_links)} Links")
+    predatory_links = extract_external_links(site, "Benutzer:Rjh/predatory")
+    print(f"Gefundene externe Links: {len(predatory_links)} Links")
 
     # Überprüfe, ob diese Links in den Seiten einer bestimmten Kategorie vorhanden sind
     category_names = ["Kategorie:Chemische Verbindung nach Element", "Kategorie:Chemische Verbindung nach Strukturelement"]  
     #exclusion_category_names = ["Kategorie:Mineral" , "Kategorie:Chemikaliengruppe", "Kategorie:Wirkstoffgruppe"]
     exclusion_category_names = ["Kategorie:Mineral"]
 
-    process_category(category_names, exclusion_category_names, external_links, site)
+    process_category(category_names, exclusion_category_names, predatory_links, site)
     print(f"\npages_checked = {pages_checked}, pages_changed = {pages_changed}")
     print("\nLaufzeit: ",human_readable_time_difference(zeitanfang, time.time()))
  

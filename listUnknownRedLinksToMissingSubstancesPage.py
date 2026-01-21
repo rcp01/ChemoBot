@@ -242,21 +242,31 @@ def get_pages_in_category(category_name, site, content=True):
 
 def filter_pages(target_pages_gen, exclusion_pages_gen):
     """
-    Filtert Seiten aus, die in target_pages, aber nicht in exclusion_pages enthalten sind.
-
-    Args:
-        target_pages_gen: Ein Generator für Seiten in der Zielkategorie.
-        exclusion_pages_gen: Ein Generator für Seiten in der Ausschlusskategorie.
-
-    Yields:
-        Seiten, die in target_pages_gen, aber nicht in exclusion_pages_gen enthalten sind.
+    Filters pages that are in target_pages but not in exclusion_pages
+    and prevents duplicate pages.
     """
+
+    special_excludes = {''}
+
     exclusion_titles = {page.title() for page in exclusion_pages_gen}
+
+    seen_titles = set()   # <-- HIER passiert die Magie
 
     for page in target_pages_gen:
         title = page.title()
-        if title not in exclusion_titles and not page.isRedirectPage():
+
+        if title in seen_titles:
+            continue  # Duplikat → überspringen
+
+        seen_titles.add(title)
+
+        if (
+            title not in exclusion_titles
+            and not page.isRedirectPage()
+            and title not in special_excludes
+        ):
             yield page
+
 
 def search_wikidata_number(cas_number):
     url = f"https://tools.wmflabs.org/wikidata-todo/resolver.php?prop=231&value={cas_number}"  # Beispiel für eine umleitende URL

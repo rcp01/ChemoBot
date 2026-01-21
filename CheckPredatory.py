@@ -7,8 +7,6 @@ import traceback
 import requests
 
 pages_checked = 0
-pages_changed = 0
-
 
 # Funktion, um die externen Links von einer Wikipedia-Seite zu extrahieren
 def extract_external_links(site, page_title):
@@ -38,24 +36,31 @@ def get_pages_in_category(category_name, site):
 
 def filter_pages(target_pages_gen, exclusion_pages_gen):
     """
-    Filters pages that are in target_pages but not in exclusion_pages.
-
-    Args:
-        target_pages_gen: A generator for pages in the target category.
-        exclusion_pages_gen: A generator for pages in the exclusion category.
-
-    Yields:
-        Pages that are in target_pages_gen but not in exclusion_pages_gen.
+    Filters pages that are in target_pages but not in exclusion_pages
+    and prevents duplicate pages.
     """
-    
-    special_excludes = ['']
-    
+
+    special_excludes = {''}
+
     exclusion_titles = {page.title() for page in exclusion_pages_gen}
+
+    seen_titles = set()   # <-- HIER passiert die Magie
 
     for page in target_pages_gen:
         title = page.title()
-        if title not in exclusion_titles and not page.isRedirectPage() and (title not in special_excludes):
+
+        if title in seen_titles:
+            continue  # Duplikat → überspringen
+
+        seen_titles.add(title)
+
+        if (
+            title not in exclusion_titles
+            and not page.isRedirectPage()
+            and title not in special_excludes
+        ):
             yield page
+
 
 def get_external_links(page: pywikibot.Page):
     site = page.site
@@ -77,6 +82,37 @@ def get_external_links(page: pywikibot.Page):
 
     data = response.json()
     return data.get("parse", {}).get("externallinks", [])
+
+def write_results_to_subpage(base_page: pywikibot.Page, lines: list[str]):
+    """
+    Schreibt die gefundenen Links in eine Unterseite der Basis-Seite.
+    Die Seite wird angelegt, falls sie nicht existiert.
+    """
+    if not lines:
+        return  # nichts zu schreiben
+
+    subpage_title = base_page.title() + "/Predatory-Links"
+    subpage = pywikibot.Page(base_page.site, subpage_title)
+
+    header = (
+        "== Gefundene predatory Journal Links ==\n"
+        "{| class=\"wikitable\"\n"
+        "! Domain !! Gefundener externer Link\n"
+    )
+
+    rows = ""
+    for line in lines:
+        pred, ext = line
+        rows += f"|-\n| {pred} || {ext}\n"
+
+    footer = "|}\n"
+
+    new_text = header + rows + footer
+
+    subpage.text = new_text
+    subpage.save(
+        summary="Bot: Liste gefundener predatory externer Links aktualisiert"
+    )
 
 
 def process_category(category_names, exclusion_category_names, predatory_links, site):
@@ -110,6 +146,7 @@ def process_category(category_names, exclusion_category_names, predatory_links, 
     count = 0
 
     print("process pages")
+    found_links = []
     for page in filtered_pages:
 
         count = count + 1
@@ -129,6 +166,7 @@ def process_category(category_names, exclusion_category_names, predatory_links, 
                 for ext in external_links:
                     for pred in predatory_links:
                         if pred in ext:
+                            found_links.append((pred, ext))
                             print(f"  -> Link gefunden: {pred} in {page.title()}")
                     # else:
                     #    print(f"  -> Link NICHT gefunden: {link}")
@@ -137,6 +175,10 @@ def process_category(category_names, exclusion_category_names, predatory_links, 
             except Exception as e:
                 traceback.print_exc()
                 print(f"Failed to add text to page {page.title()}: {e}")
+
+    if found_links:
+        write_results_to_subpage(page, found_links)
+
 
 def human_readable_time_difference(start_time, end_time):
     """
@@ -184,7 +226,7 @@ def main():
     exclusion_category_names = ["Kategorie:Mineral"]
 
     process_category(category_names, exclusion_category_names, predatory_links, site)
-    print(f"\npages_checked = {pages_checked}, pages_changed = {pages_changed}")
+    print(f"\npages_checked = {pages_checked}")
     print("\nLaufzeit: ",human_readable_time_difference(zeitanfang, time.time()))
  
 if __name__ == "__main__":

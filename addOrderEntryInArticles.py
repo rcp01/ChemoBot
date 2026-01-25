@@ -246,41 +246,53 @@ def add_text_to_page(page):
                 print(f"Fehler beim Speichern der Seite {page_title}: {e}")
 
 
-def get_pages_in_category(category_name, site):
+def get_pages_in_category(category_name, site, content=True):
     """
-    Retrieves all pages in a given category and its subcategories.
+    Ruft alle Seiten in einer Kategorie und deren Unterkategorien ab.
 
     Args:
-        category_name: The name of the category.
-        site: The pywikibot.Site object representing the Wikipedia site.
+        category_name: Der Name der Kategorie.
+        site: Das pywikibot.Site-Objekt, das die Wikipedia-Site repräsentiert.
 
     Returns:
-        A set of pages in the category and its subcategories.
+        Ein Generator für Seiten in der Kategorie und deren Unterkategorien.
     """
+    
     category = pywikibot.Category(site, category_name)
-    return pagegenerators.CategorizedPageGenerator(category, recurse=True)
+    ret = pagegenerators.CategorizedPageGenerator(category, recurse=True, content=content)
+
+    return ret
 
 def filter_pages(target_pages_gen, exclusion_pages_gen):
     """
-    Filters pages that are in target_pages but not in exclusion_pages.
-
-    Args:
-        target_pages_gen: A generator for pages in the target category.
-        exclusion_pages_gen: A generator for pages in the exclusion category.
-
-    Yields:
-        Pages that are in target_pages_gen but not in exclusion_pages_gen.
+    Filters pages that are in target_pages but not in exclusion_pages
+    and prevents duplicate pages.
     """
-    
+    print("filter pages")
+
     special_excludes = ['T-2-Toxin', 'Fura-2AM', 'H12MDI', 'Biotin-PEG2-Amin', 'Cy5-Succinimidylester', 'HFPO-DA', 'Naphthol-AS-MX-Phosphat', 'L-Selektrid']
-    
+
     exclusion_titles = {page.title() for page in exclusion_pages_gen}
+
+    seen_titles = set()   # <-- HIER passiert die Magie
 
     for page in target_pages_gen:
         title = page.title()
-        numbers = re.findall(r'\d+', title)
-        if title not in exclusion_titles and not re.search(r'\d+$', title) and not page.isRedirectPage() and (not any(int(num) > 20 for num in numbers) and (' ' not in title)) and (title not in special_excludes):
+
+        if title in seen_titles:
+            continue  # Duplikat → überspringen
+
+        seen_titles.add(title)
+
+        if (
+            title not in exclusion_titles
+            and not page.isRedirectPage()
+            and title not in special_excludes
+        ):
             yield page
+
+    print("exit filter pages")
+
 
 def process_category(category_names, exclusion_category_names, site):
     """
@@ -302,7 +314,7 @@ def process_category(category_names, exclusion_category_names, site):
     exclusion_pages = []
     for exclusion_category_name in exclusion_category_names:
         print(f"exclude pages from {exclusion_category_name}")
-        exclusion_pages = itertools.chain(exclusion_pages, get_pages_in_category(exclusion_category_name, site))
+        exclusion_pages = itertools.chain(exclusion_pages, get_pages_in_category(exclusion_category_name, site, content=False))
 
     # Subtract exclusion pages from target pages
     print("filter out exclusion category pages from category pages")
@@ -310,10 +322,10 @@ def process_category(category_names, exclusion_category_names, site):
 
     print("process pages")
     for page in filtered_pages:
-        # print(page.title())
         global pages_checked
         pages_checked = pages_checked + 1
-        if page.namespace() == 0:  # Only process articles (namespace 0)
+        print(f"{pages_checked}. {page.title()}")
+        if page.namespace() == 0 and not page.isRedirectPage():  # Only process articles (namespace 0)
             try:
                 add_text_to_page(page)
                 # print(f"Added text to page: {page.title()}")

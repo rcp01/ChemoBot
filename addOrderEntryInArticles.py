@@ -288,6 +288,7 @@ def filter_pages(target_pages_gen, exclusion_pages_gen):
             title not in exclusion_titles
             and not page.isRedirectPage()
             and title not in special_excludes
+            and " " not in title
         ):
             yield page
 

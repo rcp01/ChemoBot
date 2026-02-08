@@ -97,13 +97,13 @@ def write_results_to_subpage(base_page: pywikibot.Page, lines: list[str]):
     header = (
         "== Gefundene predatory Journal Links ==\n"
         "{| class=\"wikitable\"\n"
-        "! Domain !! Gefundener externer Link\n"
+        "! Domain !! Gefundener externer Link !! Seite \n"
     )
 
     rows = ""
     for line in lines:
-        pred, ext = line
-        rows += f"|-\n| {pred} || {ext}\n"
+        pred, ext, site = line
+        rows += f"|-\n| {pred} || {ext} || {site}\n"
 
     footer = "|}\n"
 
@@ -166,7 +166,7 @@ def process_category(category_names, exclusion_category_names, predatory_links, 
                 for ext in external_links:
                     for pred in predatory_links:
                         if pred in ext:
-                            found_links.append((pred, ext))
+                            found_links.append((pred, ext, page.title()))
                             print(f"  -> Link gefunden: {pred} in {page.title()}")
                     # else:
                     #    print(f"  -> Link NICHT gefunden: {link}")

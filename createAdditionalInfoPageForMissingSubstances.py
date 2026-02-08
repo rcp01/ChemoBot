@@ -199,6 +199,9 @@ def update_wikipedia_page(site, results):
                 AddOn += ", in EPA_HPV"
             if cas_nr in OECD_HPV:
                 AddOn += ", in OECD_HPV"
+            cas_nrs = data['cas_nrs']
+            if cas_nr not in cas_nrs:
+                AddOn += ", CAS not in Wikidata"                            
             cas_nr = "{{CASRN|"+cas_nr+"}}" + AddOn
         if len(data["substances"]) == 1:
             substance = data["substances"][0]
@@ -269,6 +272,13 @@ def getSearchCount(site, name):
     #print(f"Treffer für '{name}' im Artikelnamensraum: {len(results)}")
     return len(results)
 
+def get_cas_numbers(item):
+
+    return [
+        claim.getTarget()
+        for claim in item.claims.get("P231", [])
+    ]
+
 def main():
     zeitanfang = time.time()	
     print("Start ...")
@@ -302,6 +312,7 @@ def main():
             results[name]["german_name"] = ""
             results[name]["langs"] = -1
             results[name]["cas_nr"] = cas_nr
+            results[name]["cas_nrs"] = []
             results[name]["searchcount"].append(searchcount)
         
         else:
@@ -311,10 +322,13 @@ def main():
             else:
                 incoming_links_templates = 0
             item = getWikidataItem(site, wikidata_id)
+            
+            cas_numbers = get_cas_numbers(item)
+                        
             result = has_german_wikipedia_link(site, item)
             language_count = count_wikipedia_languages(site, item)
             
-            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, davon Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}, cas: {cas_nr}")
+            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, aus Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}, cas: {cas_nr}, cas_nrs: {cas_numbers} ({cas_nr not in cas_numbers})")
             
             results[wikidata_id]["substances"].append(name)
             results[wikidata_id]["links"].append(incoming_links)
@@ -323,6 +337,7 @@ def main():
             results[wikidata_id]["german_name"] = result["german_page_name"]
             results[wikidata_id]["langs"] = max(results[wikidata_id]["langs"], language_count)
             results[wikidata_id]["cas_nr"] = cas_nr
+            results[wikidata_id]["cas_nrs"] = cas_numbers
             results[wikidata_id]["searchcount"].append(searchcount)
         
         # if (count >= 100):

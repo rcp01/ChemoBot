@@ -6,7 +6,7 @@ import time
 import traceback
 
 pages_checked = 0
-pages_changed = 0
+pages_found = 0
 
 # Funktion, um die externen Links von einer Wikipedia-Seite zu extrahieren
 def extract_external_names(site, page_title):
@@ -25,9 +25,89 @@ def extract_references(wikitext):
     """
     Extrahiert die Referenzen aus dem Wikitext einer Seite.
     """
-    references = re.findall(r"<ref[ >](.*?)(?:<\/ref>|\/>)", wikitext, re.DOTALL)
+    references = re.findall(
+        r"<ref(?!erences)\b[^>]*>(.*?)(?:</ref>|/>)",
+        wikitext,
+        re.DOTALL | re.IGNORECASE
+    )
     return references
 
+def parse_reference(text, name):
+    """
+    Durchsucht alle <ref ...>...</ref>-Blöcke und extrahiert:
+      - Datum (Jahr)
+      - DOI (strukturiert oder aus {{DOI|...}})
+    Der gesuchte Name muss irgendwo im <ref>-Block vorkommen.
+    Gibt ein Dictionary oder None zurück.
+    """
+
+    # Alle <ref ...>...</ref>-Blöcke finden
+    ref_blocks = re.findall(r"(<ref[^>]*>.*?</ref>)", text, re.DOTALL)
+    if not ref_blocks:
+        return None
+
+    def extract_structured(field, content):
+        """Extrahiert strukturierte Felder wie DOI = ..."""
+        pattern = rf"{field}\s*=\s*([^|}}]+)"
+        match = re.search(pattern, content)
+        return match.group(1).strip() if match else None
+
+    def extract_unstructured(content):
+        """Extrahiert DOI aus {{DOI|...}} und Jahr aus Fließtext"""
+        doi = None
+        datum = None
+
+# DOI aus {{DOI|...}}
+        doi_match = re.search(
+            r"(?:\{\{DOI\||\[\[doi:|\|doi\s*=)\s*([^}\]\|\s]+)",
+            content,
+            re.IGNORECASE
+        )
+
+        if doi_match:
+            doi = doi_match.group(1).strip()
+
+
+        # Jahr (vierstellig)
+        year_match = re.search(r"\b(19|20)\d{2}\b", content)
+        if year_match:
+            datum = year_match.group(0)
+
+        return datum, doi
+
+    for full_block in ref_blocks:
+
+        # Name kann im Tag oder im Inhalt stehen
+        if name not in full_block:
+            continue
+
+        # Inhalt extrahieren
+        content_match = re.search(r"<ref[^>]*>(.*?)</ref>", full_block, re.DOTALL)
+        if not content_match:
+            continue
+
+        ref_content = content_match.group(1)
+
+        # 1. Strukturierte Felder
+        datum = extract_structured("Datum", ref_content)
+        doi = extract_structured("DOI", ref_content)
+
+        # 2. Unstrukturierte Felder ergänzen, falls noch nicht vorhanden
+        unstruct_datum, unstruct_doi = extract_unstructured(ref_content)
+
+        if datum is None:
+            datum = unstruct_datum
+
+        if doi is None:
+            doi = unstruct_doi
+
+        return {
+            "Datum": datum,
+            "DOI": doi
+        }
+
+    return None
+    
 # Funktion, um zu prüfen, ob ein externer Name in den Referenzen vorkommt
 def check_names_in_references(references, external_names):
     """
@@ -69,7 +149,7 @@ def check_names_in_references(references, external_names):
                     continue
                 if name == "BioMed" and (("BioMed Central" in reference) or ("BioMed research international")): 
                     continue
-                if name == "Journal of Toxicology" and (("Journal of Toxicology and Environmental Health" in reference) or ("International Journal of Toxicology" in reference)): 
+                if name == "Journal of Toxicology" and (("Journal of Toxicology and Environmental Health" in reference) or ("International Journal of Toxicology" in reference) or ("Japanese Journal of Toxicology" in reference) or ("Journal of Toxicology Clinical Toxicology" in reference)): 
                     continue
                 if name == "ECI" and "PRECI" in reference: 
                     continue
@@ -103,6 +183,8 @@ def check_names_in_references(references, external_names):
                     continue
                 if name == "Medical Sciences" and "Journal of Experimental Physiology and Cognate Medical Sciences" in reference: 
                     continue
+                if name == "Medical Sciences" and "Turkiye Klinikleri Journal of Medical Sciences" in reference: 
+                    continue
                 if name == "Forensic Sciences" and "Journal of Forensic Sciences" in reference: 
                     continue
                 if name == "Horticulturae" and (("Scientia Horticulturae" in reference) or ("Acta Horticulturae") in reference): 
@@ -123,6 +205,27 @@ def check_names_in_references(references, external_names):
                     continue
                 if name == "Physiologia" and "Physiologia Plantarum" in reference: 
                     continue
+                if name == "International Journal of Environment" and "International Journal of Environmental Research and Public Health" in reference:
+                    continue
+                if name == "BioTech" and "BioTechniques" in reference: 
+                    continue
+                if name == "Agriculturae" and "Acta Agriculturae" in reference: 
+                    continue
+                if name == "JCT" and "IJCT" in reference: 
+                    continue
+                if name == "Review of Research" and "Systematic Review of Research" in reference: 
+                    continue
+                if name == "Journal of Science" and "American Journal of Science" in reference: 
+                    continue
+                if name == "Molecular Imaging" and "Molecular Imaging, Biomedical Materials and Pharmaceuticals" in reference: 
+                    continue
+                if name == "Neuropsychiatry" and "Journal of Neuropsychiatry" in reference: 
+                    continue
+                if name == "Journal of Oncology" and "International Journal of Oncology" in reference: 
+                    continue
+                if name == "IJP" and "IJPP" in reference: 
+                    continue
+
                 found_names.append(name)
                 found_names = list(set(found_names))                
     return found_names
@@ -145,23 +248,61 @@ def get_pages_in_category(category_name, site):
 
 def filter_pages(target_pages_gen, exclusion_pages_gen):
     """
-    Filters pages that are in target_pages but not in exclusion_pages.
-
-    Args:
-        target_pages_gen: A generator for pages in the target category.
-        exclusion_pages_gen: A generator for pages in the exclusion category.
-
-    Yields:
-        Pages that are in target_pages_gen but not in exclusion_pages_gen.
+    Filters pages that are in target_pages but not in exclusion_pages
+    and prevents duplicate pages.
     """
-    special_excludes = ['']
+
+    special_excludes = {''}
 
     exclusion_titles = {page.title() for page in exclusion_pages_gen}
 
+    seen_titles = set()   # <-- HIER passiert die Magie
+
     for page in target_pages_gen:
         title = page.title()
-        if title not in exclusion_titles and not page.isRedirectPage() and (title not in special_excludes):
+
+        if title in seen_titles:
+            continue  # Duplikat → überspringen
+
+        seen_titles.add(title)
+
+        if (
+            title not in exclusion_titles
+            and not page.isRedirectPage()
+            and title not in special_excludes
+        ):
             yield page
+
+def write_results_to_subpage(site, lines: list[str]):
+    """
+    Schreibt die gefundenen Links in eine Unterseite der Basis-Seite.
+    Die Seite wird angelegt, falls sie nicht existiert.
+    """
+    if not lines:
+        return  # nichts zu schreiben
+
+    subpage_title = "Benutzer:Rjh/predatory_names/Predatory-Journals"
+    subpage = pywikibot.Page(site, subpage_title)
+
+    header = (
+        "== Gefundene predatory Journal Links ==\n"
+        "{| class=\"wikitable\"\n"
+        "! Seite !! Predatory Journal Name !! DOI !! Datum\n"
+    )
+
+    rows = ""
+    for line in lines:
+        names, on_site, doi, date = line
+        rows += f"|-\n| [[{on_site}]] || {names} || {doi} || {date}\n"
+
+    footer = "|}\n"
+
+    new_text = header + rows + footer
+
+    subpage.text = new_text
+    subpage.save(
+        summary="Bot: Liste gefundener predatory externer Links aktualisiert"
+    )
 
 
 def process_category(category_names, exclusion_category_names, external_names, site):
@@ -196,13 +337,14 @@ def process_category(category_names, exclusion_category_names, external_names, s
     count = 0
 
     print("Process pages")
+    found_links = []
     for page in filtered_pages:
         count += 1
         if time.time() - start_time >= interval:
             start_time = time.time()  # Reset der Startzeit für die nächste Nachricht
             print(f"{count}. Seite: {page.title()}")
 
-        global pages_checked
+        global pages_checked, pages_found
         pages_checked += 1
 
         if page.namespace() == 0 and not page.isRedirectPage():  # Only process articles (namespace 0)
@@ -211,14 +353,28 @@ def process_category(category_names, exclusion_category_names, external_names, s
                 # Extrahiere Referenzen aus dem Wikitext
                 references = extract_references(page_text)
 
-                # Prüfe, ob externe Links in den Referenzen vorkommen
+                # Prüfe, ob externe Journal Namen in den Referenzen vorkommen
                 found_names = check_names_in_references(references, external_names)
 
+                for name in found_names:
+                    
+                    ref_data = parse_reference(page_text, name)
+                    if ref_data:
+                        found_links.append((name, page.title(), ref_data["DOI"], ref_data["Datum"]))
+                    else:
+                        found_links.append((name, page.title(), "", ""))
+                    print(f"{pages_found} [[{page.title()}]]: {name}")
+                
                 if found_names:
-                    print(f"* [[{page.title()}]]: {', '.join(found_names)}")
+                    pages_found += 1
+                    if pages_found > 200:
+                        break
             except Exception as e:
                 traceback.print_exc()
                 print(f"Failed to process page {page.title()}: {e}")
+
+    if found_links:
+        write_results_to_subpage(site, found_links)
 
 
 def human_readable_time_difference(start_time, end_time):
@@ -267,7 +423,7 @@ def main():
 
     # Prozess starten
     process_category(category_names, exclusion_category_names, external_names, site)
-    print(f"\npages_checked = {pages_checked}, pages_changed = {pages_changed}")
+    print(f"\npages_checked = {pages_checked}, pages_found = {pages_found}")
     print("\nLaufzeit: ", human_readable_time_difference(zeitanfang, time.time()))
 
 

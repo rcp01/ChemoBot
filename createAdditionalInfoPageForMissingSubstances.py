@@ -201,7 +201,7 @@ def update_wikipedia_page(site, results):
                 AddOn += ", in OECD_HPV"
             cas_nrs = data['cas_nrs']
             if cas_nr not in cas_nrs:
-                AddOn += ", CAS not in Wikidata"                            
+                AddOn += ", CAS nicht in Wikidata"                            
             cas_nr = "{{CASRN|"+cas_nr+"}}" + AddOn
         if len(data["substances"]) == 1:
             substance = data["substances"][0]

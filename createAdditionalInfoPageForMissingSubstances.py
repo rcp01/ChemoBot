@@ -62,6 +62,24 @@ def get_missing_substances(site, page_title):
     # print(substances)
     return substances
 
+import pywikibot
+from pywikibot import pagegenerators
+
+def get_qids_by_cas(site, cas_number):
+    sparql = f"""
+    SELECT ?item WHERE {{
+      ?item wdt:P231 "{cas_number}".
+    }}
+    """
+
+    repo = site.data_repository()
+
+    return [
+        item.id
+        for item in pagegenerators.WikidataSPARQLPageGenerator(sparql, site=repo)
+    ]
+
+
 def getWikidataItem(site, wikidata_id):
     try:
         repo = site.data_repository()  # Daten-Repository für Wikidata
@@ -203,6 +221,22 @@ def update_wikipedia_page(site, results):
             if cas_nr not in cas_nrs:
                 AddOn += ", CAS nicht in Wikidata"                            
             cas_nr = "{{CASRN|"+cas_nr+"}}" + AddOn
+            qids =  data['qids']
+            
+            if qids:
+               if wikidata in qids:
+                   if len(qids) > 1:
+                      qids.remove(wikidata) 
+                      links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
+                      AddOn += f", andere Wikidata Einträge mit gleicher CAS vorhanden ({links})"
+               else:
+                   if len(qids) > 1:
+                      links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
+                      AddOn += f", Wikidata Einträge mit gleicher CAS vorhanden, aber Wikidata ID abweichend ({links})"
+                   else:
+                      links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
+                      AddOn += f", Wikidata ID abweichend ({links})"
+
         if len(data["substances"]) == 1:
             substance = data["substances"][0]
             links = data['links'][0]
@@ -295,6 +329,8 @@ def main():
     print("Get information for pages ...")
     for count, (name, wikidata_id, cas_nr) in enumerate(substances, start=1):
         
+        qids = get_qids_by_cas(site, cas_nr)
+
         searchcount = getSearchCount(site, name)
         
         if wikidata_id == unknown_wikidata:
@@ -303,7 +339,8 @@ def main():
                 incoming_links_templates = count_links_via_templates(site, name)["template"]
             else:
                 incoming_links_templates = 0
-            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, davon Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {False}, Sprachen: {-1}, cas: {cas_nr}")
+                
+            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, davon Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {False}, Sprachen: {-1}, cas: {cas_nr}, qids: {qids}")
             
             results[name]["substances"].append(name)
             results[name]["links"].append(incoming_links)
@@ -313,6 +350,7 @@ def main():
             results[name]["langs"] = -1
             results[name]["cas_nr"] = cas_nr
             results[name]["cas_nrs"] = []
+            results[name]["qids"] = qids
             results[name]["searchcount"].append(searchcount)
         
         else:
@@ -328,7 +366,7 @@ def main():
             result = has_german_wikipedia_link(site, item)
             language_count = count_wikipedia_languages(site, item)
             
-            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, aus Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}, cas: {cas_nr}, cas_nrs: {cas_numbers} ({cas_nr not in cas_numbers})")
+            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, aus Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}, cas: {cas_nr}, cas_nrs: {cas_numbers} ({cas_nr not in cas_numbers}), qids: {qids}")
             
             results[wikidata_id]["substances"].append(name)
             results[wikidata_id]["links"].append(incoming_links)
@@ -338,6 +376,7 @@ def main():
             results[wikidata_id]["langs"] = max(results[wikidata_id]["langs"], language_count)
             results[wikidata_id]["cas_nr"] = cas_nr
             results[wikidata_id]["cas_nrs"] = cas_numbers
+            results[wikidata_id]["qids"] = qids
             results[wikidata_id]["searchcount"].append(searchcount)
         
         # if (count >= 100):

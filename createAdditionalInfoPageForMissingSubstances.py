@@ -3,6 +3,7 @@ import re
 import time
 import mwparserfromhell
 from collections import defaultdict
+from pywikibot import pagegenerators
 
 unknown_wikidata = "Q000000"
 unknown_cas = "-"
@@ -62,10 +63,7 @@ def get_missing_substances(site, page_title):
     # print(substances)
     return substances
 
-import pywikibot
-from pywikibot import pagegenerators
-
-def get_qids_by_cas(site, cas_number):
+def get_qids_by_cas(site, cas_number, retries=3, delay=5):
     sparql = f"""
     SELECT ?item WHERE {{
       ?item wdt:P231 "{cas_number}".
@@ -74,10 +72,25 @@ def get_qids_by_cas(site, cas_number):
 
     repo = site.data_repository()
 
-    return [
-        item.id
-        for item in pagegenerators.WikidataSPARQLPageGenerator(sparql, site=repo)
-    ]
+    for attempt in range(1, retries + 1):
+        try:
+            return [
+                item.id
+                for item in pagegenerators.WikidataSPARQLPageGenerator(
+                    sparql, site=repo
+                )
+            ]
+        except Exception as e:
+            if attempt >= retries:
+                raise  # letzte Exception weiterreichen
+
+            pywikibot.warning(
+                f"SPARQL fehlgeschlagen für CAS {cas_number} "
+                f"(Versuch {attempt}/{retries}): {e}"
+            )
+            time.sleep(delay)
+
+    return []  # wird praktisch nie erreicht
 
 
 def getWikidataItem(site, wikidata_id):

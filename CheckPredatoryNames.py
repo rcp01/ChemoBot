@@ -26,7 +26,7 @@ def extract_references(wikitext):
     Extrahiert die Referenzen aus dem Wikitext einer Seite.
     """
     references = re.findall(
-        r"<ref(?!erences)\b[^>]*>(.*?)(?:</ref>|/>)",
+        r"<ref(?!erences)\b[^>/]*>(.*?)</ref>",
         wikitext,
         re.DOTALL | re.IGNORECASE
     )
@@ -100,6 +100,9 @@ def parse_reference(text, name):
 
         if doi is None:
             doi = unstruct_doi
+        
+        if doi is None and "ISBN" in ref_content:
+            return None
 
         return {
             "Datum": datum,
@@ -273,6 +276,29 @@ def filter_pages(target_pages_gen, exclusion_pages_gen):
         ):
             yield page
 
+
+def is_allowed_doi(doi: str) -> bool:
+    """
+    Prüft, ob eine DOI das Format 10.xxxx/yyyy hat
+    und xxxx in der erlaubten Liste ist.
+    """
+    if not doi:
+        return False
+        
+    ALLOWED_PREFIXES = {
+        "1002", "1007", "1016", "1021", "1038",
+        "1039", "1055", "1080", "1093", "1126",
+    }
+
+
+    m = re.fullmatch(r"10\.(\d{4})/[^ \t]+", doi.strip())
+    if not m:
+        return False
+
+    prefix = m.group(1)
+    return prefix in ALLOWED_PREFIXES
+
+
 def write_results_to_subpage(site, lines: list[str]):
     """
     Schreibt die gefundenen Links in eine Unterseite der Basis-Seite.
@@ -355,17 +381,26 @@ def process_category(category_names, exclusion_category_names, external_names, s
 
                 # Prüfe, ob externe Journal Namen in den Referenzen vorkommen
                 found_names = check_names_in_references(references, external_names)
-
+                
+                found = False
+                
                 for name in found_names:
                     
                     ref_data = parse_reference(page_text, name)
                     if ref_data:
+                        
+                        doi = ref_data["DOI"]
+                        if is_allowed_doi(doi):
+                            continue
+                            
+                        found = True
                         found_links.append((name, page.title(), ref_data["DOI"], ref_data["Datum"]))
                     else:
+                        found = True
                         found_links.append((name, page.title(), "", ""))
                     print(f"{pages_found} [[{page.title()}]]: {name}")
                 
-                if found_names:
+                if found:
                     pages_found += 1
                     if pages_found > 200:
                         break

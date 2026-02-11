@@ -233,7 +233,6 @@ def update_wikipedia_page(site, results):
             cas_nrs = data['cas_nrs']
             if cas_nr not in cas_nrs:
                 AddOn += ", CAS nicht in Wikidata"                            
-            cas_nr = "{{CASRN|"+cas_nr+"}}" + AddOn
             qids =  data['qids']
             
             if qids:
@@ -249,6 +248,7 @@ def update_wikipedia_page(site, results):
                    else:
                       links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
                       AddOn += f", Wikidata ID abweichend ({links})"
+            cas_nr = "{{CASRN|"+cas_nr+"}}" + AddOn
 
         if len(data["substances"]) == 1:
             substance = data["substances"][0]

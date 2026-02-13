@@ -4,9 +4,62 @@ import re
 import itertools
 import time
 import traceback
+import requests
 
 pages_checked = 0
 pages_found = 0
+
+
+DOI_PATTERN = re.compile(r"^10\.\d{4,9}/\S+$", re.IGNORECASE)
+
+import re
+import time
+import requests
+
+DOI_PATTERN = re.compile(r"^10\.\d{4,9}/\S+$", re.IGNORECASE)
+
+import requests
+import re
+
+DOI_PATTERN = re.compile(r"^10\.\d{4,9}/\S+$", re.IGNORECASE)
+
+def doi_exists(doi, timeout=15):
+    # print(f"Prüfe DOI: {doi}")
+
+    if not doi:
+        return False
+
+    doi = doi.strip()
+
+    if not DOI_PATTERN.match(doi):
+        print("DOI hat ungültiges Format")
+        return False
+
+    url = f"https://api.crossref.org/works/{doi}"
+    # print(f"→ Anfrage an: {url}")
+
+    headers = {
+        "User-Agent": "MyWikiBot/1.0 (mailto:mail@example.org)"
+    }
+
+    try:
+        response = requests.get(url, headers=headers, timeout=timeout)
+        # print(f"← HTTP Status: {response.status_code}")
+
+        if response.status_code == 200:
+            return True
+        elif response.status_code == 404:
+            print("DOI existiert nicht (404)")
+            return False
+        else:
+            print(f"Unerwarteter Statuscode: {response.status_code}")
+            return False
+
+    except requests.RequestException as e:
+        print(f"Netzwerkfehler: {e}")
+        return False
+
+
 
 # Funktion, um die externen Links von einer Wikipedia-Seite zu extrahieren
 def extract_external_names(site, page_title):
@@ -57,7 +110,7 @@ def parse_reference(text, name):
         doi = None
         datum = None
 
-# DOI aus {{DOI|...}}
+        # DOI aus {{DOI|...}}
         doi_match = re.search(
             r"(?:\{\{DOI\||\[\[doi:|\|doi\s*=)\s*([^}\]\|\s]+)",
             content,
@@ -95,13 +148,13 @@ def parse_reference(text, name):
         # 2. Unstrukturierte Felder ergänzen, falls noch nicht vorhanden
         unstruct_datum, unstruct_doi = extract_unstructured(ref_content)
 
-        if datum is None:
+        if not datum:
             datum = unstruct_datum
 
-        if doi is None:
+        if not doi:
             doi = unstruct_doi
         
-        if doi is None and "ISBN" in ref_content:
+        if not doi and "ISBN" in ref_content:
             return None
 
         return {
@@ -136,7 +189,7 @@ def check_names_in_references(references, external_names):
                     continue
                 if name == "Scientific World" and "The Scientific World Journal" in reference: 
                     continue
-                if name == "Applied Microbiology" and (("Applied Microbiology and Biotechnology" in reference) or ("Journal of Applied Microbiology" in reference)): 
+                if name == "Applied Microbiology" and (("Applied Microbiology and Biotechnology" in reference) or ("Journal of Applied Microbiology" in reference)or ("Systematic and Applied Microbiology" in reference) or ("Letters in Applied Microbiology" in reference) or ("The Society for Applied Microbiology" in reference)): 
                     continue
                 if name == "Engineering Sciences" and "Mathematical, Physical and Engineering Sciences" in reference: 
                     continue
@@ -170,7 +223,7 @@ def check_names_in_references(references, external_names):
                     continue
                 if name == "CAE" and "CAESIUM" in reference: 
                     continue
-                if name == "ABP" and "ABPA" in reference: 
+                if name == "ABP" and ("ABPA" in reference or ("FABP" in reference)): 
                     continue
                 if name == "IJP" and "Indian Journal of Plastic Surgery" in reference: 
                     continue
@@ -227,6 +280,10 @@ def check_names_in_references(references, external_names):
                 if name == "Journal of Oncology" and "International Journal of Oncology" in reference: 
                     continue
                 if name == "IJP" and "IJPP" in reference: 
+                    continue
+                if name == "Business Journal" and "Boston Business Journal" in reference: 
+                    continue
+                if name == "Reproductive Medicine" and "Journal of Reproductive Medicine and Endocrinology" in reference: 
                     continue
 
                 found_names.append(name)
@@ -311,14 +368,18 @@ def write_results_to_subpage(site, lines: list[str]):
     subpage = pywikibot.Page(site, subpage_title)
 
     header = (
-        "== Gefundene predatory Journal Links ==\n"
-        "{| class=\"wikitable\"\n"
+        "== Gefundene Predatory Journal Namen ==\n"
+        "{| class=\"wikitable sortable\"\n"
         "! Seite !! Predatory Journal Name !! DOI !! Datum\n"
     )
 
     rows = ""
     for line in lines:
-        names, on_site, doi, date = line
+        names, on_site, doi, date, doi_correct = line
+        if doi and doi.strip():
+           doi = f"{{{{DOI|{doi}}}}}"
+           if not doi_correct:
+               doi += " (unbekannt bei crossref)"
         rows += f"|-\n| [[{on_site}]] || {names} || {doi} || {date}\n"
 
     footer = "|}\n"
@@ -327,7 +388,7 @@ def write_results_to_subpage(site, lines: list[str]):
 
     subpage.text = new_text
     subpage.save(
-        summary="Bot: Liste gefundener predatory externer Links aktualisiert"
+        summary="Bot: Liste gefundener Predatory Journal Namen aktualisiert"
     )
 
 
@@ -394,10 +455,10 @@ def process_category(category_names, exclusion_category_names, external_names, s
                             continue
                             
                         found = True
-                        found_links.append((name, page.title(), ref_data["DOI"], ref_data["Datum"]))
+                        found_links.append((name, page.title(), ref_data["DOI"], ref_data["Datum"], doi_exists(doi)))
                     else:
                         found = True
-                        found_links.append((name, page.title(), "", ""))
+                        found_links.append((name, page.title(), "", "", ""))
                     print(f"{pages_found} [[{page.title()}]]: {name}")
                 
                 if found:
@@ -436,6 +497,9 @@ def human_readable_time_difference(start_time, end_time):
 
 # Hauptfunktion
 def main():
+    
+    # print(doi_exists("10.3390/ijerph16122068"))
+    # exit(0)
     zeitanfang = time.time()
     site = pywikibot.Site('de', 'wikipedia')  # Stelle sicher, dass du 'de' und 'wikipedia' korrekt konfigurierst
 

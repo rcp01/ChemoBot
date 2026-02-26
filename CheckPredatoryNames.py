@@ -5,6 +5,7 @@ import itertools
 import time
 import traceback
 import requests
+from helperfunctions import human_readable_time_difference
 
 pages_checked = 0
 pages_found = 0
@@ -471,28 +472,6 @@ def process_category(category_names, exclusion_category_names, external_names, s
 
     if found_links:
         write_results_to_subpage(site, found_links)
-
-
-def human_readable_time_difference(start_time, end_time):
-    """
-    Gibt die Zeitdifferenz zwischen zwei datetime-Objekten in menschlich lesbarer Form zurück.
-    """
-    delta = end_time - start_time
-    days, seconds = divmod(delta, 3600 * 24)
-    hours, seconds = divmod(seconds, 3600)
-    minutes, seconds = divmod(seconds, 60)
-
-    result = []
-    if days > 0:
-        result.append(f"{days} Tage")
-    if hours > 0:
-        result.append(f"{hours} Stunden")
-    if minutes > 0:
-        result.append(f"{minutes} Minuten")
-    if seconds > 0:
-        result.append(f"{round(seconds, 1)} Sekunden")
-
-    return ', '.join(result)
 
 
 # Hauptfunktion

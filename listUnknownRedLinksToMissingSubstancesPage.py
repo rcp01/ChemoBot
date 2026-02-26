@@ -1040,7 +1040,8 @@ if __name__ == "__main__":
 
     # Kategorien und Ausschlüsse
     category_names = ["Kategorie:Chemische Verbindung nach Element", "Kategorie:Chemische Verbindung nach Strukturelement", "Kategorie:Mineral"]
-    exclusion_category_names = ["Kategorie:Chemikaliengruppe", "Kategorie:Wirkstoffgruppe"]
+    #exclusion_category_names = ["Kategorie:Chemikaliengruppe", "Kategorie:Wirkstoffgruppe"]
+    exclusion_category_names = []
     last_page_name = ""
     
     # Prüfen, welche Flags gesetzt wurden

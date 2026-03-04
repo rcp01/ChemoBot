@@ -200,9 +200,16 @@ def update_wikipedia_page(site, results):
     match = re.search(r'(^.*?)(==\s*Zusatzinformationen\s*==)', content, re.DOTALL)
     pre_text = match.group(1).strip() if match else ""
     new_content = f"{pre_text}\n\n== Zusatzinformationen ==\n"
+    
+    first_warning = True
+    first_other = True
+    last_links = 100000
+    
     for wikidata, data in results.items():
+        warning = False
         german_text = ""
         if data["has_german"]:
+            warning = True
             page2 = pywikibot.Page(site, data["german_name"])
             if page2.isRedirectPage():
                 german_text = f"(dabei auch anderer Artikel [[{data["german_name"]}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]]) in Deutsch) "
@@ -212,6 +219,7 @@ def update_wikipedia_page(site, results):
         langs_count = data['langs']
         wikidata_text = ""        
         if langs_count == -1: 
+            warning = True
             name=data["substances"][0]
             name = name.replace(" ", "%20")
             if len(cas_nr)>1:
@@ -232,6 +240,7 @@ def update_wikipedia_page(site, results):
                 AddOn += ", in OECD_HPV"
             cas_nrs = data['cas_nrs']
             if cas_nr not in cas_nrs:
+                warning = True
                 AddOn += ", CAS nicht in Wikidata"                            
             qids =  data['qids']
             
@@ -241,21 +250,37 @@ def update_wikipedia_page(site, results):
                       qids.remove(wikidata) 
                       links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
                       AddOn += f", andere Wikidata Einträge mit gleicher CAS vorhanden ({links})"
+                      warning = True
                else:
                    if len(qids) > 1:
                       links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
                       AddOn += f", Wikidata Einträge mit gleicher CAS vorhanden, aber Wikidata ID abweichend ({links})"
+                      warning = True
                    else:
                       links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
                       AddOn += f", Wikidata ID abweichend ({links})"
+                      warning = True
             cas_nr = "{{CASRN|"+cas_nr+"}}" + AddOn
 
+        if warning == True and first_warning == True:
+            first_warning = False
+            new_content += f"\n\n=== Warnungen ===\n"
+        else:
+            if warning == False and first_other == True:
+                first_other = False
+                new_content += f"\n\n=== Liste ===\n"                
+                
         if len(data["substances"]) == 1:
             substance = data["substances"][0]
             links = data['links'][0]
             template_links = data['template_links'][0]
             searchcount = data['searchcount'][0]
             page2 = pywikibot.Page(site, substance)
+            
+            if lastlinks > links:
+                last_links = links
+                new_content += f"\n\n=== {links} Links ===\n"                
+                       
             if page2.exists() and page2.isRedirectPage():
                 new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]]), CAS:{cas_nr}\n"            
             else:
@@ -274,6 +299,10 @@ def update_wikipedia_page(site, results):
                 links = f"{data['links'][count]}"
                 linklist_list += f"[[Spezial:Linkliste/{s}|{links}]]+"
                 count += 1
+
+            if lastlinks > sum(data['links']):
+                last_links = sum(data['links'])
+                new_content += f"\n\n=== {links} Links ===\n"                
             
             template_links = sum(data['template_links'])
             new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{data["substances"][0].replace(" ", "%20")}%22&ns0=1 {sum(data['searchcount'])}] Suchtreffer {wikidata_text} für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"
@@ -398,6 +427,8 @@ def main():
     print("Sorting results ...")
     sorted_results = dict(sorted(results.items(), key=lambda x: (
         not x[1]["has_german"], 
+        x[1]["cas_nr"] not in x[1].get("cas_nrs", []),
+        not (len(x[1]["qids"]) == 1 and x[0] in x[1]["qids"]),
         x[1]["langs"] != -1, 
         -(sum(x[1]["links"]) - sum(x[1]["template_links"])), 
         -x[1]["langs"], 

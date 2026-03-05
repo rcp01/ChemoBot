@@ -4,6 +4,7 @@ import time
 import mwparserfromhell
 from collections import defaultdict
 from pywikibot import pagegenerators
+import random
 
 unknown_wikidata = "Q000000"
 unknown_cas = "-"
@@ -63,7 +64,7 @@ def get_missing_substances(site, page_title):
     # print(substances)
     return substances
 
-def get_qids_by_cas(site, cas_number, retries=3, delay=5):
+def get_qids_by_cas(site, cas_number, retries=10, delay=5):
     sparql = f"""
     SELECT ?item WHERE {{
       ?item wdt:P231 "{cas_number}".
@@ -88,7 +89,7 @@ def get_qids_by_cas(site, cas_number, retries=3, delay=5):
                 f"SPARQL fehlgeschlagen für CAS {cas_number} "
                 f"(Versuch {attempt}/{retries}): {e}"
             )
-            time.sleep(delay)
+            time.sleep(delay*attempt)
 
     return []  # wird praktisch nie erreicht
 
@@ -185,9 +186,10 @@ def count_wikipedia_languages(site, item):
     else:
         return -1
 
+
 def update_wikipedia_page(site, results):
     page = pywikibot.Page(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Zusatzinformationen")
-    #page = pywikibot.Page(site, "Benutzer:ChemoBot/Tests/Zusatzinformationen")
+    # page = pywikibot.Page(site, "Benutzer:ChemoBot/Tests/Zusatzinformationen")
     content = page.text
     
     counter = 1
@@ -197,12 +199,11 @@ def update_wikipedia_page(site, results):
     OECD_HPV = load_cas_numbers("OECD_HPV.txt")
     
     # Trenne den vorhandenen Inhalt in den Teil vor "Zusatzinformationen" und den Rest
-    match = re.search(r'(^.*?)(==\s*Zusatzinformationen\s*==)', content, re.DOTALL)
+    match = re.search(r'(^.*?)(=+\s*Zusatzinformationen\s*=+)', content, re.DOTALL)
     pre_text = match.group(1).strip() if match else ""
-    new_content = f"{pre_text}\n\n== Zusatzinformationen ==\n"
-    
-    first_warning = True
-    first_other = True
+    new_content_warning = ""
+    new_content = ""
+
     last_links = 100000
     
     for wikidata, data in results.items():
@@ -262,29 +263,22 @@ def update_wikipedia_page(site, results):
                       warning = True
             cas_nr = "{{CASRN|"+cas_nr+"}}" + AddOn
 
-        if warning == True and first_warning == True:
-            first_warning = False
-            new_content += f"\n\n=== Warnungen ===\n"
-        else:
-            if warning == False and first_other == True:
-                first_other = False
-                new_content += f"\n\n=== Liste ===\n"                
-                
+        new_line = ""        
         if len(data["substances"]) == 1:
             substance = data["substances"][0]
             links = data['links'][0]
             template_links = data['template_links'][0]
             searchcount = data['searchcount'][0]
             page2 = pywikibot.Page(site, substance)
-            
-            if lastlinks > links:
+                                   
+            if warning == False and last_links > links:
                 last_links = links
                 new_content += f"\n\n=== {links} Links ===\n"                
-                       
+
             if page2.exists() and page2.isRedirectPage():
-                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]]), CAS:{cas_nr}\n"            
+                new_line = f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]]), CAS:{cas_nr}\n"            
             else:
-                new_content += f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]], CAS:{cas_nr}\n"
+                new_line = f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]], CAS:{cas_nr}\n"
         else:
             # print(data["substances"])
             substance_list = ""
@@ -300,14 +294,25 @@ def update_wikipedia_page(site, results):
                 linklist_list += f"[[Spezial:Linkliste/{s}|{links}]]+"
                 count += 1
 
-            if lastlinks > sum(data['links']):
+            if warning == False and last_links > sum(data['links']):
                 last_links = sum(data['links'])
                 new_content += f"\n\n=== {links} Links ===\n"                
             
             template_links = sum(data['template_links'])
-            new_content += f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{data["substances"][0].replace(" ", "%20")}%22&ns0=1 {sum(data['searchcount'])}] Suchtreffer {wikidata_text} für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"
+            new_line = f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{data["substances"][0].replace(" ", "%20")}%22&ns0=1 {sum(data['searchcount'])}] Suchtreffer {wikidata_text} für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"
+        
+        if warning:
+            new_content_warning += new_line
+        else:
+            new_content += new_line
+        
         print(f"{counter}/{len(results.items())} {data["substances"][0]}")
         counter += 1
+
+    if new_content_warning != "":
+       new_content = f"{pre_text}\n\n= Zusatzinformationen =\n== Warnungen ==\n\n{new_content_warning}\n== Liste ==\n\n{new_content}"
+    else:
+       new_content = f"{pre_text}\n\n= Zusatzinformationen =\n\n== Liste ==\n\n{new_content}"
 
     page.text = new_content
     #print(new_content)
@@ -355,16 +360,79 @@ def get_cas_numbers(item):
         for claim in item.claims.get("P231", [])
     ]
 
-def main():
-    zeitanfang = time.time()	
-    print("Start ...")
-    site = pywikibot.Site('de', 'wikipedia')
+def get_infos_for_substances_test(site, substances):
+    """
+    Testversion von get_infos_for_substances.
+    Erzeugt Zufallswerte statt echte Wikipedia/Wikidata-Abfragen.
+    """
 
-    page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen"
-    
-    print("Get missing substances ...")
-    substances = get_missing_substances(site, page_title)
-    
+    results = defaultdict(lambda: {
+        "substances": [],
+        "links": [],
+        "template_links": [],
+        "searchcount": [],
+        "has_german": False,
+        "german_name": "",
+        "langs": -1,
+        "cas_nr": "",
+        "cas_nrs": [],
+        "qids": []
+    })
+
+    print("Generate random test data ...")
+
+    for count, (name, wikidata_id, cas_nr) in enumerate(substances, start=1):
+
+        # Zufallswerte erzeugen
+        incoming_links = random.randint(0, 50)
+        template_links = random.randint(0, incoming_links) if incoming_links > 0 else 0
+        searchcount = random.randint(0, 200)
+        if random.random() < 0.2:
+            has_german = True
+        else:
+            has_german = False
+        langs = random.randint(0, 40)
+
+        # Zufällige CAS-Liste
+        cas_nrs = []
+        if random.random() < 0.6 and cas_nr != unknown_cas:
+            cas_nrs.append(cas_nr)
+
+        # zusätzliche zufällige CAS
+        if random.random() < 0.3:
+            cas_nrs.append(f"{random.randint(10,9999999)}-{random.randint(10,99)}-{random.randint(0,9)}")
+
+        # zufällige Wikidata Items mit gleicher CAS
+        qids = []
+        for _ in range(random.randint(0,2)):
+            qids.append(f"Q{random.randint(10000,9999999)}")
+
+        key = wikidata_id if wikidata_id != unknown_wikidata else name
+
+        results[key]["substances"].append(name)
+        results[key]["links"].append(incoming_links)
+        results[key]["template_links"].append(template_links)
+        results[key]["searchcount"].append(searchcount)
+        results[key]["has_german"] = has_german
+        results[key]["german_name"] = name if has_german else ""
+        results[key]["langs"] = max(results[key]["langs"], langs)
+        results[key]["cas_nr"] = cas_nr
+        results[key]["cas_nrs"] = cas_nrs
+        results[key]["qids"] = qids
+
+        print(
+            f"{count}/{len(substances)} {name}: "
+            f"{incoming_links} Links, {template_links} Vorlagen, "
+            f"{searchcount} Suche, DE:{has_german}, "
+            f"langs:{langs}, cas:{cas_nr}, cas_nrs:{cas_nrs}, qids:{qids}"
+        )
+
+        if (count >= 50):
+          break
+
+    return results
+
+def get_infos_for_substances(site, substances):
     results = defaultdict(lambda: {"substances": [], "links": [], "template_links": [], "searchcount": [], "has_german": False, "german_name": "", "langs": -1, "cas_nr" : ""})
     
     count = 0
@@ -423,12 +491,24 @@ def main():
         
         # if (count >= 100):
         #    break
+    return results
+
+def main():
+    zeitanfang = time.time()	
+    print("Start ...")
+    site = pywikibot.Site('de', 'wikipedia')
+
+    page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen"
+    
+    print("Get missing substances ...")
+    substances = get_missing_substances(site, page_title)
+    
+    results = get_infos_for_substances(site, substances)
+    #results = get_infos_for_substances_test(site, substances)
     
     print("Sorting results ...")
     sorted_results = dict(sorted(results.items(), key=lambda x: (
         not x[1]["has_german"], 
-        x[1]["cas_nr"] not in x[1].get("cas_nrs", []),
-        not (len(x[1]["qids"]) == 1 and x[0] in x[1]["qids"]),
         x[1]["langs"] != -1, 
         -(sum(x[1]["links"]) - sum(x[1]["template_links"])), 
         -x[1]["langs"], 

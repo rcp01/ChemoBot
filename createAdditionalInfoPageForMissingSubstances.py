@@ -427,8 +427,8 @@ def get_infos_for_substances_test(site, substances):
             f"langs:{langs}, cas:{cas_nr}, cas_nrs:{cas_nrs}, qids:{qids}"
         )
 
-        if (count >= 50):
-          break
+        #if (count >= 50):
+        #  break
 
     return results
 

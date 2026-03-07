@@ -296,7 +296,7 @@ def update_wikipedia_page(site, results):
 
             if warning == False and last_links > sum(data['links']):
                 last_links = sum(data['links'])
-                new_content += f"\n\n=== {links} Links ===\n"                
+                new_content += f"\n\n=== {last_links} Links ===\n"                
             
             template_links = sum(data['template_links'])
             new_line = f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{data["substances"][0].replace(" ", "%20")}%22&ns0=1 {sum(data['searchcount'])}] Suchtreffer {wikidata_text} für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"

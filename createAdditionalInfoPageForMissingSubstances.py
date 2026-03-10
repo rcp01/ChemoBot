@@ -64,14 +64,12 @@ def get_missing_substances(site, page_title):
     # print(substances)
     return substances
 
-def get_qids_by_cas(site, cas_number, retries=10, delay=5):
+def get_qids_by_cas(repo, cas_number, retries=10, delay=5):
     sparql = f"""
     SELECT ?item WHERE {{
       ?item wdt:P231 "{cas_number}".
     }}
     """
-
-    repo = site.data_repository()
 
     for attempt in range(1, retries + 1):
         try:
@@ -94,9 +92,8 @@ def get_qids_by_cas(site, cas_number, retries=10, delay=5):
     return []  # wird praktisch nie erreicht
 
 
-def getWikidataItem(site, wikidata_id):
+def getWikidataItem(repo, wikidata_id):
     try:
-        repo = site.data_repository()  # Daten-Repository für Wikidata
         item = pywikibot.ItemPage(repo, wikidata_id)  # Wikidata-Item laden
         while item.isRedirectPage(): # eine oder mehrere Redirects abfangen
             item = pywikibot.ItemPage(repo, item.getRedirectTarget().title())
@@ -434,12 +431,13 @@ def get_infos_for_substances_test(site, substances):
 
 def get_infos_for_substances(site, substances):
     results = defaultdict(lambda: {"substances": [], "links": [], "template_links": [], "searchcount": [], "has_german": False, "german_name": "", "langs": -1, "cas_nr" : ""})
+    repo = site.data_repository()  # Daten-Repository für Wikidata
     
     count = 0
     print("Get information for pages ...")
     for count, (name, wikidata_id, cas_nr) in enumerate(substances, start=1):
         
-        qids = get_qids_by_cas(site, cas_nr)
+        qids = get_qids_by_cas(repo, cas_nr)
 
         searchcount = getSearchCount(site, name)
         
@@ -469,8 +467,8 @@ def get_infos_for_substances(site, substances):
                 incoming_links_templates = count_links_via_templates(site, name)["template"]
             else:
                 incoming_links_templates = 0
-            item = getWikidataItem(site, wikidata_id)
-            
+            item = getWikidataItem(repo, wikidata_id)
+            wikidata_id = item.id # use redirect id, if it is a redirect
             cas_numbers = get_cas_numbers(item)
                         
             result = has_german_wikipedia_link(site, item)

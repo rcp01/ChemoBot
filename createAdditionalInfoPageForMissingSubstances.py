@@ -5,6 +5,7 @@ import mwparserfromhell
 from collections import defaultdict
 from pywikibot import pagegenerators
 import random
+from pywikibot.data.sparql import SparqlQuery
 
 unknown_wikidata = "Q000000"
 unknown_cas = "-"
@@ -183,7 +184,7 @@ def count_wikipedia_languages(site, item):
     else:
         return -1
 
-
+ 
 def update_wikipedia_page(site, results):
     page = pywikibot.Page(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Zusatzinformationen")
     # page = pywikibot.Page(site, "Benutzer:ChemoBot/Tests/Zusatzinformationen")
@@ -198,9 +199,8 @@ def update_wikipedia_page(site, results):
     # Trenne den vorhandenen Inhalt in den Teil vor "Zusatzinformationen" und den Rest
     match = re.search(r'(^.*?)(=+\s*Zusatzinformationen\s*=+)', content, re.DOTALL)
     pre_text = match.group(1).strip() if match else ""
-    new_content_warning = ""
-    new_content = ""
-
+    warning_entries = []
+    list_entries = {}
     last_links = 100000
     
     for wikidata, data in results.items():
@@ -237,9 +237,6 @@ def update_wikipedia_page(site, results):
             if cas_nr in OECD_HPV:
                 AddOn += ", in OECD_HPV"
             cas_nrs = data['cas_nrs']
-            if cas_nr not in cas_nrs:
-                warning = True
-                AddOn += ", CAS nicht in Wikidata"                            
             qids =  data['qids']
             
             if qids:
@@ -247,17 +244,25 @@ def update_wikipedia_page(site, results):
                    if len(qids) > 1:
                       qids.remove(wikidata) 
                       links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
-                      AddOn += f", andere Wikidata Einträge mit gleicher CAS vorhanden ({links})"
+                      AddOn += f", WD-Fehler (zusätzlich weitere Wikidata Elemente mit der angegeben CAS vorhanden: {links})"
                       warning = True
                else:
                    if len(qids) > 1:
                       links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
-                      AddOn += f", Wikidata Einträge mit gleicher CAS vorhanden, aber Wikidata ID abweichend ({links})"
+                      AddOn += f", CAS-Wikidata-Zuordnungsfehler und WD-Fehler (mehrere andere Wikidata Elemente ({links}) mit angegebener CAS vorhanden, aber nicht im angegebenen Wikidata Element)"
                       warning = True
                    else:
                       links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
-                      AddOn += f", Wikidata ID abweichend ({links})"
+                      AddOn += f", CAS-Wikidata-Zuordnungsfehler (CAS Nummer in einem anderem Wikidata Element {links} vorhanden, aber nicht im angegebenen Wikidata Element)"
                       warning = True
+            else:
+                warning = True
+                if cas_nrs:
+                    links = ", ".join(f"{cas}" for cas in cas_nrs)
+                    AddOn += f", WD-Fehler (CAS Nummer in keinem Wikidata Element, auch nicht im angegeben, aber andere CAS Nummer(n) {links} im angegeben Wikidata Eintrag)"
+                else:
+                    AddOn += f", WD-Fehler (CAS Nummer in keinem Wikidata Element, auch nicht im angegeben)"
+                                   
             cas_nr = "{{CASRN|"+cas_nr+"}}" + AddOn
 
         new_line = ""        
@@ -299,17 +304,32 @@ def update_wikipedia_page(site, results):
             new_line = f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{data["substances"][0].replace(" ", "%20")}%22&ns0=1 {sum(data['searchcount'])}] Suchtreffer {wikidata_text} für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"
         
         if warning:
-            new_content_warning += new_line
+            warning_entries.append(new_line)
         else:
-            new_content += new_line
-        
+            link_count = links if len(data["substances"]) == 1 else sum(data["links"])
+            list_entries.setdefault(link_count, []).append(new_line)        
+
         print(f"{counter}/{len(results.items())} {data["substances"][0]}")
         counter += 1
 
-    if new_content_warning != "":
-       new_content = f"{pre_text}\n\n= Zusatzinformationen =\n== Warnungen ==\n\n{new_content_warning}\n== Liste ==\n\n{new_content}"
-    else:
-       new_content = f"{pre_text}\n\n= Zusatzinformationen =\n\n== Liste ==\n\n{new_content}"
+    new_content = f"{pre_text}\n\n= Zusatzinformationen =\n"
+
+    # Warnungen
+    if warning_entries:
+        new_content += f"\n== Warnungen ({len(warning_entries)}) ==\n\n"
+        new_content += "".join(warning_entries)
+
+    # Liste
+    new_content += "\n== Liste ==\n"
+
+    for link_count in sorted(list_entries.keys(), reverse=True):
+
+        entries = list_entries[link_count]
+
+        new_content += f"\n\n=== {link_count} Links ({len(entries)}) ===\n"
+
+        for line in entries:
+            new_content += line
 
     page.text = new_content
     #print(new_content)
@@ -495,7 +515,7 @@ def main():
     zeitanfang = time.time()	
     print("Start ...")
     site = pywikibot.Site('de', 'wikipedia')
-
+    
     page_title = "Wikipedia:Redaktion Chemie/Fehlende Substanzen"
     
     print("Get missing substances ...")

@@ -273,10 +273,6 @@ def update_wikipedia_page(site, results):
             searchcount = data['searchcount'][0]
             page2 = pywikibot.Page(site, substance)
                                    
-            if warning == False and last_links > links:
-                last_links = links
-                new_content += f"\n\n=== {links} Links ===\n"                
-
             if page2.exists() and page2.isRedirectPage():
                 new_line = f"* [[Spezial:Linkliste/{substance}|{links}]] Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{substance.replace(" ", "%20")}%22&ns0=1 {searchcount}] Suchtreffer {wikidata_text} für [[{substance}]] (Weiterleitung auf [[{page2.getRedirectTarget().title()}]]), CAS:{cas_nr}\n"            
             else:
@@ -295,10 +291,6 @@ def update_wikipedia_page(site, results):
                 links = f"{data['links'][count]}"
                 linklist_list += f"[[Spezial:Linkliste/{s}|{links}]]+"
                 count += 1
-
-            if warning == False and last_links > sum(data['links']):
-                last_links = sum(data['links'])
-                new_content += f"\n\n=== {last_links} Links ===\n"                
             
             template_links = sum(data['template_links'])
             new_line = f"* {sum(data['links'])} ({linklist_list.rstrip("+")}) Link(s) {"" if template_links == 0 else f"(davon {template_links} aus Vorlagen) "}auf und [https://de.wikipedia.org/w/index.php?search=%22{data["substances"][0].replace(" ", "%20")}%22&ns0=1 {sum(data['searchcount'])}] Suchtreffer {wikidata_text} für {substance_list.rstrip("/")}, CAS:{cas_nr}\n"

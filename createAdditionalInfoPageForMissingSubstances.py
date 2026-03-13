@@ -293,7 +293,7 @@ def update_wikipedia_page(site, results):
             else:
                 warning = True
                 if cas_nrs: # {{CASRN|"+cas_nr+"}}
-                    links = ", ".join(f"{{CASRN|{cas}}}" for cas in cas_nrs)
+                    links = ", ".join(f"{{{{CASRN|{cas}}}}}" for cas in cas_nrs)
                     AddOn += f", WD-Fehler (CAS Nummer in keinem Wikidata Element, auch nicht im angegeben, aber andere CAS Nummer(n) {links} im angegeben Wikidata Eintrag)"
                     reason = get_cas_rejection_reason(wikidata)
                     if reason:

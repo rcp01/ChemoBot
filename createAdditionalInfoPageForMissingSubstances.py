@@ -184,7 +184,38 @@ def count_wikipedia_languages(site, item):
     else:
         return -1
 
- 
+
+
+def get_cas_rejection_reason(qid):
+    site = pywikibot.Site("wikidata", "wikidata")
+    repo = site.data_repository()
+
+    item = pywikibot.ItemPage(repo, qid)
+    item.get()
+
+    reasons = []
+
+    if "P231" not in item.claims:
+        return ""
+
+    for claim in item.claims["P231"]:
+        if claim.rank == "deprecated":
+            cas = claim.getTarget()
+
+            if "P2241" in claim.qualifiers:
+                for q in claim.qualifiers["P2241"]:
+                    reason_item = q.getTarget()
+                    reason_item.get()
+                    label = reason_item.labels.get("de") or reason_item.labels.get("en") or reason_item.id
+                    reasons.append(f"{cas}: {label}")
+            else:
+                reasons.append(f"{cas}: kein Grund angegeben")
+
+    # doppelte Gründe entfernen
+    reasons = list(dict.fromkeys(reasons))
+
+    return "; ".join(reasons)
+
 def update_wikipedia_page(site, results):
     page = pywikibot.Page(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Zusatzinformationen")
     # page = pywikibot.Page(site, "Benutzer:ChemoBot/Tests/Zusatzinformationen")
@@ -255,11 +286,18 @@ def update_wikipedia_page(site, results):
                       links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
                       AddOn += f", CAS-Wikidata-Zuordnungsfehler (CAS Nummer in einem anderem Wikidata Element {links} vorhanden, aber nicht im angegebenen Wikidata Element)"
                       warning = True
+                   if cas_nr in cas_nrs:
+                      reason = get_cas_rejection_reason(wikidata)
+                      if reason:
+                         AddOn += f", CAS {cas_nr} in angebenem Wikidata Element wurde abgelehnt wegen: {reason}"
             else:
                 warning = True
-                if cas_nrs:
-                    links = ", ".join(f"{cas}" for cas in cas_nrs)
+                if cas_nrs: # {{CASRN|"+cas_nr+"}}
+                    links = ", ".join(f"{{CASRN|{cas}}}" for cas in cas_nrs)
                     AddOn += f", WD-Fehler (CAS Nummer in keinem Wikidata Element, auch nicht im angegeben, aber andere CAS Nummer(n) {links} im angegeben Wikidata Eintrag)"
+                    reason = get_cas_rejection_reason(wikidata)
+                    if reason:
+                       AddOn += f", CAS {cas_nr} in angebenem Wikidata Element wurde abgelehnt wegen: {reason}"
                 else:
                     AddOn += f", WD-Fehler (CAS Nummer in keinem Wikidata Element, auch nicht im angegeben)"
                                    

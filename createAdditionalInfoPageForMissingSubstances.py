@@ -90,6 +90,7 @@ def get_qids_by_cas(repo, cas_number, retries=10, delay=5):
             )
             time.sleep(delay*attempt)
 
+    print(f"max attempts reached for {cas_number}")
     return []  # wird praktisch nie erreicht
 
 
@@ -291,15 +292,22 @@ def update_wikipedia_page(site, results):
                       if reason:
                          AddOn += f", CAS {cas_nr} in angebenem Wikidata Element wurde abgelehnt wegen: {reason}"
             else:
-                warning = True
-                if cas_nrs: # {{CASRN|"+cas_nr+"}}
-                    links = ", ".join(f"{{{{CASRN|{cas}}}}}" for cas in cas_nrs)
-                    AddOn += f", WD-Fehler (CAS Nummer in keinem Wikidata Element, auch nicht im angegeben, aber andere CAS Nummer(n) {links} im angegeben Wikidata Eintrag)"
+                if cas_nr in cas_nrs:
+                    print(f"cas {cas_nr} in cas nummers {cas_nrs}, but qids empty !!!")
                     reason = get_cas_rejection_reason(wikidata)
                     if reason:
-                       AddOn += f", CAS {cas_nr} in angebenem Wikidata Element wurde abgelehnt wegen: {reason}"
+                        warning = True
+                        AddOn += f", CAS {cas_nr} in angebenem Wikidata Element wurde abgelehnt wegen: {reason}"
                 else:
-                    AddOn += f", WD-Fehler (CAS Nummer in keinem Wikidata Element, auch nicht im angegeben)"
+                    warning = True
+                    if cas_nrs: # {{CASRN|"+cas_nr+"}}
+                        links = ", ".join(f"{{{{CASRN|{cas}}}}}" for cas in cas_nrs)
+                        AddOn += f", WD-Fehler (CAS Nummer in keinem Wikidata Element, auch nicht im angegeben, aber andere CAS Nummer(n) {links} im angegeben Wikidata Eintrag)"
+                        reason = get_cas_rejection_reason(wikidata)
+                        if reason:
+                            AddOn += f", CAS {cas_nr} in angebenem Wikidata Element wurde abgelehnt wegen: {reason}"
+                    else:
+                        AddOn += f", WD-Fehler (CAS Nummer in keinem Wikidata Element, auch nicht im angegeben)"
                                    
             cas_nr = "{{CASRN|"+cas_nr+"}}" + AddOn
 
@@ -493,13 +501,13 @@ def get_suspicious_instance_of_item(item):
     Gibt einen Text zurück, wenn keiner der P31-Werte in der Whitelist ist.
     """
     whitelist = ["Q917125", "Q159226","Q119896085", "Q718074", "Q12140", "Q1069267", "Q1200715","Q8047", 
-    "Q67015883","Q1259977","Q1075", "Q169336", "Q7187", "Q55640599", "Q15711994","Q84467700", 
+    "Q67015883","Q1259977","Q1075", "Q169336", "Q55640599", "Q15711994","Q84467700", 
     "Q59199015","Q56256173","Q56256178","Q60280","Q37756", "Q2030064", "Q161179","Q81163", 
     "Q409766","Q134219", "Q8054", "Q898273", "Q417841","Q81505329","Q7251477","Q208467", 
     "Q924146", "Q12370", "Q2286901","Q12870","Q17339814","Q47154513", "Q6714735", "Q2585617", 
     "Q43460564","Q11173", "Q79529", "Q22683747","Q113145171","Q119892838","Q78155096", "Q170409", 
     "Q55662456", "Q67101749", "Q741844", "Q10400865","Q2468248","Q3965272", "Q2330866","Q78782478", 
-    "Q67101072","Q5058355" ]
+    "Q67101072" ]
 
     if "P31" not in item.claims:
         return f", für ({item.id}) ist kein Typ im Wikidata Element angegeben"

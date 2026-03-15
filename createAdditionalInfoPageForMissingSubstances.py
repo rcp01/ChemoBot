@@ -303,6 +303,12 @@ def update_wikipedia_page(site, results):
                                    
             cas_nr = "{{CASRN|"+cas_nr+"}}" + AddOn
 
+        suspicious_instances = data['suspicious_instances']
+        suspicious_instances_text = ", ".join(f"{suspicious_instance}" for suspicious_instance in suspicious_instances)
+        if suspicious_instances_text:
+            warning = True
+            cas_nr += suspicious_instances_text
+
         new_line = ""        
         if len(data["substances"]) == 1:
             substance = data["substances"][0]
@@ -337,6 +343,7 @@ def update_wikipedia_page(site, results):
             warning_entries.append(new_line)
         else:
             link_count = links if len(data["substances"]) == 1 else sum(data["links"])
+            link_count -= template_links
             list_entries.setdefault(link_count, []).append(new_line)        
 
         print(f"{counter}/{len(results.items())} {data["substances"][0]}")
@@ -466,6 +473,7 @@ def get_infos_for_substances_test(site, substances):
         results[key]["cas_nr"] = cas_nr
         results[key]["cas_nrs"] = cas_nrs
         results[key]["qids"] = qids
+        results[key]["suspicious_instances"].append("Test")
 
         print(
             f"{count}/{len(substances)} {name}: "
@@ -479,8 +487,47 @@ def get_infos_for_substances_test(site, substances):
 
     return results
 
+def get_suspicious_instance_of_item(item):
+    """
+    Prüft die P31-Einträge eines Wikidata-Items.
+    Gibt einen Text zurück, wenn keiner der P31-Werte in der Whitelist ist.
+    """
+    whitelist = ["Q917125", "Q159226","Q119896085", "Q718074", "Q12140", "Q1069267", "Q1200715","Q8047", 
+    "Q67015883","Q1259977","Q1075", "Q169336", "Q7187", "Q55640599", "Q15711994","Q84467700", 
+    "Q59199015","Q56256173","Q56256178","Q60280","Q37756", "Q2030064", "Q161179","Q81163", 
+    "Q409766","Q134219", "Q8054", "Q898273", "Q417841","Q81505329","Q7251477","Q208467", 
+    "Q924146", "Q12370", "Q2286901","Q12870","Q17339814","Q47154513", "Q6714735", "Q2585617", 
+    "Q43460564","Q11173", "Q79529", "Q22683747","Q113145171","Q119892838","Q78155096", "Q170409", 
+    "Q55662456", "Q67101749", "Q741844", "Q10400865","Q2468248","Q3965272", "Q2330866","Q78782478", 
+    "Q67101072","Q5058355" ]
+
+    if "P31" not in item.claims:
+        return f", für ({item.id}) ist kein Typ im Wikidata Element angegeben"
+
+    found_instances = []
+
+    for claim in item.claims["P31"]:
+
+        target = claim.getTarget()
+
+        if target.isRedirectPage():
+            target = target.getRedirectTarget()
+
+        if target.id in whitelist:
+            return ""   # alles ok → keine Ausgabe
+
+        target.get()
+        target_label = target.labels.get("de") or target.labels.get("en") or target_id
+        found_instances.append(target_label)
+
+
+    # Wenn wir hier sind: kein P31 in der Whitelist
+    label = item.labels.get("de") or item.labels.get("en") or item.id
+
+    return f", Wikidata Element {label} ({item.id}) hat einen verdächtigen Typ: \"{', '.join(found_instances)}\" (nicht in Whitelist)"
+
 def get_infos_for_substances(site, substances):
-    results = defaultdict(lambda: {"substances": [], "links": [], "template_links": [], "searchcount": [], "has_german": False, "german_name": "", "langs": -1, "cas_nr" : ""})
+    results = defaultdict(lambda: {"substances": [], "links": [], "template_links": [], "searchcount": [], "has_german": False, "german_name": "", "langs": -1, "cas_nr" : "", "suspicious_instances": []})
     repo = site.data_repository()  # Daten-Repository für Wikidata
     
     count = 0
@@ -524,7 +571,9 @@ def get_infos_for_substances(site, substances):
             result = has_german_wikipedia_link(site, item)
             language_count = count_wikipedia_languages(site, item)
             
-            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, aus Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}, cas: {cas_nr}, cas_nrs: {cas_numbers} ({cas_nr not in cas_numbers}), qids: {qids}")
+            suspicious_instance_text = get_suspicious_instance_of_item(item)
+            
+            print(f"{count}/{len(substances)} {name}: {incoming_links} Links, aus Vorlagen {incoming_links_templates}, Suchtreffer: {searchcount}, Deutscher Artikel: {result["has_german_wikipedia_link"]}, Sprachen: {language_count}, cas: {cas_nr}, cas_nrs: {cas_numbers} ({cas_nr not in cas_numbers}), qids: {qids}{suspicious_instance_text}")
             
             results[wikidata_id]["substances"].append(name)
             results[wikidata_id]["links"].append(incoming_links)
@@ -536,6 +585,8 @@ def get_infos_for_substances(site, substances):
             results[wikidata_id]["cas_nrs"] = cas_numbers
             results[wikidata_id]["qids"] = qids
             results[wikidata_id]["searchcount"].append(searchcount)
+            if suspicious_instance_text:
+                results[wikidata_id]["suspicious_instances"].append(suspicious_instance_text)
         
         # if (count >= 100):
         #    break

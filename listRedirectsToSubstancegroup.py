@@ -7,9 +7,38 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import defaultdict
 import time
 
+SOURCE_PAGE = "Benutzer:Rjh/Test"
+OK_PAGE = "Benutzer:Rjh/Test3"
+NOK_PAGE = "Benutzer:Rjh/Test4"
 
-MAX_THREADS = 10
+def load_exceptions(site, title):
+    """Lädt Ausnahmen exakt im Ausgabeformat"""
 
+    page = pywikibot.Page(site, title)
+
+    try:
+        text = page.get()
+    except Exception as e:
+        print(f"Fehler beim Laden der Ausnahmen: {e}")
+        return set()
+
+    exceptions = set()
+
+    for line in text.splitlines():
+        line = line.strip()
+
+        if not line:
+            continue
+
+        # Falls jemand doch "*" davor schreibt → entfernen
+        if line.startswith("*"):
+            line = line[1:].strip()
+
+        exceptions.add(line)
+
+    print(f"{len(exceptions)} Ausnahmen geladen")
+
+    return exceptions
 
 def get_articles(site):
     """Alle Artikel aus Kategorie Stoffgruppe und Unterkategorien holen"""
@@ -33,7 +62,7 @@ def get_articles(site):
     return pages
 
 
-def process_article(page):
+def process_article(page, exceptions):
 
     results = []
     problems = []
@@ -52,10 +81,17 @@ def process_article(page):
 
                 target = r.getRedirectTarget()
 
+                # 👉 String wie in Ausgabe erzeugen
+                output_line = f"[[{r.title()}]] → [[{target.title()}]]"
+
+                # 👉 IGNORIEREN wenn in Ausnahmen
+                if output_line in exceptions:
+                    continue
+
                 if target.title() != page.title():
 
                     problems.append(
-                        f"* [[{r.title()}]] → [[{target.title()}]] (zeigt nicht auf [[{page.title()}]])"
+                        f"* {output_line} (zeigt nicht auf [[{page.title()}]])"
                     )
 
                 else:
@@ -67,13 +103,13 @@ def process_article(page):
                 if target.isRedirectPage():
 
                     problems.append(
-                        f"* [[{r.title()}]] → [[{target.title()}]] (Redirect-Kette)"
+                        f"* {output_line} (Redirect-Kette)"
                     )
 
                 if not target.exists():
 
                     problems.append(
-                        f"* [[{r.title()}]] → [[{target.title()}]] (Ziel existiert nicht)"
+                        f"* {output_line} (Ziel existiert nicht)"
                     )
 
             except Exception as e:
@@ -90,12 +126,13 @@ def process_article(page):
 
     return results, problems
 
-
 def main():
 
     start = time.time()
 
     site = pywikibot.Site("de", "wikipedia")
+
+    known_redirects = load_exceptions(site, OK_PAGE) + load_exceptions(site, NOK_PAGE)
 
     print("Lade Artikel aus Kategoriebaum...")
 
@@ -106,31 +143,24 @@ def main():
     all_redirects = []
     all_problems = []
 
-    print("Prüfe Redirects parallel...")
+    print("Prüfe Redirects...")
 
-    with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+    for i, page in enumerate(articles, start=1):
 
-        futures = {
-            executor.submit(process_article, page): page
-            for page in articles
-        }
+        redirects, problems = process_article(page, known_redirects)
 
-        for i, future in enumerate(as_completed(futures), start=1):
+        all_redirects.extend(redirects)
+        all_problems.extend(problems)
 
-            redirects, problems = future.result()
-
-            all_redirects.extend(redirects)
-            all_problems.extend(problems)
-
-            if i % 20 == 0:
-                print(f"{i}/{len(articles)} Artikel geprüft")
+        if i % 20 == 0:
+            print(f"{i}/{len(articles)} Artikel geprüft")
 
     all_redirects = sorted(set(all_redirects))
     all_problems = sorted(set(all_problems))
 
     print("Erstelle Wikipedia-Ausgabe...")
 
-    text = "== Redirects auf Stoffgruppenartikel ==\n\n"
+    text = "__TOC__\n== Redirects auf Stoffgruppenartikel ==\n\n"
 
     text += "\n".join(all_redirects)
 

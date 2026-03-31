@@ -94,17 +94,27 @@ def get_qids_by_cas(repo, cas_number, retries=10, delay=5):
     return []  # wird praktisch nie erreicht
 
 
-def getWikidataItem(repo, wikidata_id):
-    try:
-        item = pywikibot.ItemPage(repo, wikidata_id)  # Wikidata-Item laden
-        while item.isRedirectPage(): # eine oder mehrere Redirects abfangen
-            item = pywikibot.ItemPage(repo, item.getRedirectTarget().title())
-        item.get()  # Daten abrufen
-        return item
-    except Exception as e:
-        print(f"Fehler beim Abrufen von {wikidata_id}: {e}")
-        return None
+def getWikidataItem(repo, wikidata_id, max_retries=3, wait_seconds=60):
+    for attempt in range(1, max_retries + 1):
+        try:
+            item = pywikibot.ItemPage(repo, wikidata_id)
 
+            # Redirects auflösen (kann mehrfach verschachtelt sein)
+            while item.isRedirectPage():
+                item = pywikibot.ItemPage(repo, item.getRedirectTarget().title())
+
+            item.get()
+            return item  # ✅ Erfolg
+
+        except Exception as e:
+            print(f"⚠️ Fehler bei {wikidata_id} (Versuch {attempt}/{max_retries}): {e}")
+
+            if attempt < max_retries:
+                print(f"⏳ Warte {wait_seconds} Sekunden vor erneutem Versuch...")
+                time.sleep(wait_seconds)
+            else:
+                print(f"❌ Endgültig fehlgeschlagen: {wikidata_id}")
+                return None
 def count_incoming_links(site, title):
     """Zählt die Anzahl der eingehenden Links auf eine Seite in der Wikipedia."""
     page = pywikibot.Page(site, title)
@@ -508,6 +518,9 @@ def get_suspicious_instance_of_item(item):
     "Q43460564","Q11173", "Q79529", "Q22683747","Q113145171","Q119892838","Q78155096", "Q170409", 
     "Q55662456", "Q67101749", "Q741844", "Q10400865","Q2468248","Q3965272", "Q2330866","Q78782478", 
     "Q67101072" ]
+    
+    if not item:
+        return ""
 
     if "P31" not in item.claims:
         return f", für ({item.id}) ist kein Typ im Wikidata Element angegeben"
@@ -573,8 +586,10 @@ def get_infos_for_substances(site, substances):
             else:
                 incoming_links_templates = 0
             item = getWikidataItem(repo, wikidata_id)
-            wikidata_id = item.id # use redirect id, if it is a redirect
-            cas_numbers = get_cas_numbers(item)
+            cas_numbers = []
+            if item:
+                wikidata_id = item.id # use redirect id, if it is a redirect
+                cas_numbers = get_cas_numbers(item)
                         
             result = has_german_wikipedia_link(site, item)
             language_count = count_wikipedia_languages(site, item)

@@ -508,6 +508,7 @@ def update_wikipedia_page(site, rotlinks, last_page_name, reason):
         else:
             print("Keine Änderungen notwendig.")
     except Exception as e:
+        print("Update der Seite abgebrochen wegen Exception")
         traceback.print_exc()
 
 def save_red_links_to_file(filename, rotlinks, last_page_name):

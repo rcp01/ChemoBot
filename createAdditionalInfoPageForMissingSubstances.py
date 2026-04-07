@@ -104,16 +104,16 @@ def getWikidataItem(repo, wikidata_id, max_retries=3, wait_seconds=60):
                 item = pywikibot.ItemPage(repo, item.getRedirectTarget().title())
 
             item.get()
-            return item  # ✅ Erfolg
+            return item  # Erfolg
 
         except Exception as e:
-            print(f"⚠️ Fehler bei {wikidata_id} (Versuch {attempt}/{max_retries}): {e}")
+            print(f"Fehler bei {wikidata_id} (Versuch {attempt}/{max_retries}): {e}")
 
             if attempt < max_retries:
-                print(f"⏳ Warte {wait_seconds} Sekunden vor erneutem Versuch...")
+                print(f"Warte {wait_seconds} Sekunden vor erneutem Versuch...")
                 time.sleep(wait_seconds)
             else:
-                print(f"❌ Endgültig fehlgeschlagen: {wikidata_id}")
+                print(f"Endgültig fehlgeschlagen: {wikidata_id}")
                 return None
 def count_incoming_links(site, title):
     """Zählt die Anzahl der eingehenden Links auf eine Seite in der Wikipedia."""
@@ -198,35 +198,40 @@ def count_wikipedia_languages(site, item):
 
 
 def get_cas_rejection_reason(qid):
-    site = pywikibot.Site("wikidata", "wikidata")
-    repo = site.data_repository()
+    try:
+        site = pywikibot.Site("wikidata", "wikidata")
+        repo = site.data_repository()
 
-    item = pywikibot.ItemPage(repo, qid)
-    item.get()
+        item = pywikibot.ItemPage(repo, qid)
+        item.get()
 
-    reasons = []
+        reasons = []
 
-    if "P231" not in item.claims:
+        if "P231" not in item.claims:
+            return ""
+
+        for claim in item.claims["P231"]:
+            if claim.rank == "deprecated":
+                cas = claim.getTarget()
+
+                if "P2241" in claim.qualifiers:
+                    for q in claim.qualifiers["P2241"]:
+                        reason_item = q.getTarget()
+                        reason_item.get()
+                        label = reason_item.labels.get("de") or reason_item.labels.get("en") or reason_item.id
+                        reasons.append(f"{cas}: {label}")
+                else:
+                    reasons.append(f"{cas}: kein Grund angegeben")
+
+        # doppelte Gründe entfernen
+        reasons = list(dict.fromkeys(reasons))
+
+        return "; ".join(reasons)
+    except Exception as e:
+        print(f"Fehler bei {qid}: {e}")
         return ""
-
-    for claim in item.claims["P231"]:
-        if claim.rank == "deprecated":
-            cas = claim.getTarget()
-
-            if "P2241" in claim.qualifiers:
-                for q in claim.qualifiers["P2241"]:
-                    reason_item = q.getTarget()
-                    reason_item.get()
-                    label = reason_item.labels.get("de") or reason_item.labels.get("en") or reason_item.id
-                    reasons.append(f"{cas}: {label}")
-            else:
-                reasons.append(f"{cas}: kein Grund angegeben")
-
-    # doppelte Gründe entfernen
-    reasons = list(dict.fromkeys(reasons))
-
-    return "; ".join(reasons)
-
+    
+    
 def update_wikipedia_page(site, results):
     page = pywikibot.Page(site, "Wikipedia:Redaktion Chemie/Fehlende Substanzen/Zusatzinformationen")
     # page = pywikibot.Page(site, "Benutzer:ChemoBot/Tests/Zusatzinformationen")
@@ -531,8 +536,12 @@ def get_suspicious_instance_of_item(item):
 
         target = claim.getTarget()
 
-        if target.isRedirectPage():
-            target = target.getRedirectTarget()
+        try:
+            if target.isRedirectPage():
+                target = target.getRedirectTarget()
+        except Exception as e:
+            print(f"Fehler bei {item.id}: {e}")
+            return ""
 
         if target.id in whitelist:
             return ""   # alles ok → keine Ausgabe

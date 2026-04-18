@@ -74,12 +74,12 @@ def get_qids_by_cas(repo, cas_number, retries=10, delay=5):
 
     for attempt in range(1, retries + 1):
         try:
-            return [
+            return sorted([
                 item.id
                 for item in pagegenerators.WikidataSPARQLPageGenerator(
                     sparql, site=repo
                 )
-            ]
+            ])
         except Exception as e:
             if attempt >= retries:
                 raise  # letzte Exception weiterreichen
@@ -115,6 +115,7 @@ def getWikidataItem(repo, wikidata_id, max_retries=3, wait_seconds=60):
             else:
                 print(f"Endgültig fehlgeschlagen: {wikidata_id}")
                 return None
+            
 def count_incoming_links(site, title):
     """Zählt die Anzahl der eingehenden Links auf eine Seite in der Wikipedia."""
     page = pywikibot.Page(site, title)
@@ -253,6 +254,7 @@ def update_wikipedia_page(site, results):
     for wikidata, data in results.items():
         warning = False
         german_text = ""
+        fetch_failed = data.get("fetch_failed", False)
         if data["has_german"]:
             warning = True
             page2 = pywikibot.Page(site, data["german_name"])
@@ -262,8 +264,10 @@ def update_wikipedia_page(site, results):
                 german_text = f"(dabei auch anderer Artikel [[{data["german_name"]}]] in Deutsch) "  
         cas_nr = data["cas_nr"]
         langs_count = data['langs']
-        wikidata_text = ""        
-        if langs_count == -1: 
+        wikidata_text = ""
+        if fetch_failed:
+            wikidata_text = f"und '''Wikidata-Abfrage für [[:d:{wikidata}|{wikidata}]] fehlgeschlagen'''"
+        elif langs_count == -1: 
             warning = True
             name=data["substances"][0]
             name = name.replace(" ", "%20")
@@ -286,51 +290,53 @@ def update_wikipedia_page(site, results):
             cas_nrs = data['cas_nrs']
             qids =  data['qids']
             
-            if qids:
-               if wikidata in qids:
-                   if len(qids) > 1:
-                      qids.remove(wikidata) 
-                      links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
-                      AddOn += f", WD-Fehler (zusätzlich weitere Wikidata Elemente mit der angegeben CAS vorhanden: {links})"
-                      warning = True
-               else:
-                   if len(qids) > 1:
-                      links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
-                      AddOn += f", CAS-Wikidata-Zuordnungsfehler und WD-Fehler (mehrere andere Wikidata Elemente ({links}) mit angegebener CAS vorhanden, aber nicht im angegebenen Wikidata Element)"
-                      warning = True
+            if not fetch_failed:
+                if qids:
+                   if wikidata in qids:
+                       if len(qids) > 1:
+                          qids.remove(wikidata) 
+                          links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
+                          AddOn += f", WD-Fehler (zusätzlich weitere Wikidata Elemente mit der angegeben CAS vorhanden: {links})"
+                          warning = True
                    else:
-                      links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
-                      AddOn += f", CAS-Wikidata-Zuordnungsfehler (CAS Nummer in einem anderem Wikidata Element {links} vorhanden, aber nicht im angegebenen Wikidata Element)"
-                      warning = True
-                   if cas_nr in cas_nrs:
-                      reason = get_cas_rejection_reason(wikidata)
-                      if reason:
-                         AddOn += f", CAS {cas_nr} in angebenem Wikidata Element wurde abgelehnt wegen: {reason}"
-            else:
-                if cas_nr in cas_nrs:
-                    print(f"cas {cas_nr} in cas nummers {cas_nrs}, but qids empty !!!")
-                    reason = get_cas_rejection_reason(wikidata)
-                    if reason:
-                        warning = True
-                        AddOn += f", CAS {cas_nr} in angebenem Wikidata Element wurde abgelehnt wegen: {reason}"
+                       if len(qids) > 1:
+                          links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
+                          AddOn += f", CAS-Wikidata-Zuordnungsfehler und WD-Fehler (mehrere andere Wikidata Elemente ({links}) mit angegebener CAS vorhanden, aber nicht im angegebenen Wikidata Element)"
+                          warning = True
+                       else:
+                          links = ", ".join(f"[[:d:{qid}]]" for qid in qids)
+                          AddOn += f", CAS-Wikidata-Zuordnungsfehler (CAS Nummer in einem anderem Wikidata Element {links} vorhanden, aber nicht im angegebenen Wikidata Element)"
+                          warning = True
+                       if cas_nr in cas_nrs:
+                          reason = get_cas_rejection_reason(wikidata)
+                          if reason:
+                             AddOn += f", CAS {cas_nr} in angebenem Wikidata Element wurde abgelehnt wegen: {reason}"
                 else:
-                    warning = True
-                    if cas_nrs: # {{CASRN|"+cas_nr+"}}
-                        links = ", ".join(f"{{{{CASRN|{cas}}}}}" for cas in cas_nrs)
-                        AddOn += f", WD-Fehler (CAS Nummer in keinem Wikidata Element, auch nicht im angegeben, aber andere CAS Nummer(n) {links} im angegeben Wikidata Eintrag)"
+                    if cas_nr in cas_nrs:
+                        print(f"cas {cas_nr} in cas nummers {cas_nrs}, but qids empty !!!")
                         reason = get_cas_rejection_reason(wikidata)
                         if reason:
+                            warning = True
                             AddOn += f", CAS {cas_nr} in angebenem Wikidata Element wurde abgelehnt wegen: {reason}"
                     else:
-                        AddOn += f", WD-Fehler (CAS Nummer in keinem Wikidata Element, auch nicht im angegeben)"
-                                   
+                        warning = True
+                        if cas_nrs: # {{CASRN|"+cas_nr+"}}
+                            links = ", ".join(f"{{{{CASRN|{cas}}}}}" for cas in cas_nrs)
+                            AddOn += f", WD-Fehler (CAS Nummer in keinem Wikidata Element, auch nicht im angegeben, aber andere CAS Nummer(n) {links} im angegeben Wikidata Eintrag)"
+                            reason = get_cas_rejection_reason(wikidata)
+                            if reason:
+                                AddOn += f", CAS {cas_nr} in angebenem Wikidata Element wurde abgelehnt wegen: {reason}"
+                        else:
+                            AddOn += f", WD-Fehler (CAS Nummer in keinem Wikidata Element, auch nicht im angegeben)"
+            
             cas_nr = "{{CASRN|"+cas_nr+"}}" + AddOn
 
         suspicious_instances = data['suspicious_instances']
         suspicious_instances_text = ", ".join(f"{suspicious_instance}" for suspicious_instance in suspicious_instances)
         if suspicious_instances_text:
-            warning = True
             cas_nr += suspicious_instances_text
+            if not fetch_failed:
+                warning = True
 
         new_line = ""        
         if len(data["substances"]) == 1:
@@ -557,7 +563,7 @@ def get_suspicious_instance_of_item(item):
     return f", Wikidata Element {label} ({item.id}) hat einen verdächtigen Typ: \"{', '.join(found_instances)}\" (nicht in Whitelist)"
 
 def get_infos_for_substances(site, substances):
-    results = defaultdict(lambda: {"substances": [], "links": [], "template_links": [], "searchcount": [], "has_german": False, "german_name": "", "langs": -1, "cas_nr" : "", "suspicious_instances": []})
+    results = defaultdict(lambda: {"substances": [], "links": [], "template_links": [], "searchcount": [], "has_german": False, "german_name": "", "langs": -1, "cas_nr" : "", "suspicious_instances": [], "fetch_failed": False})
     repo = site.data_repository()  # Daten-Repository für Wikidata
     
     count = 0
@@ -587,6 +593,7 @@ def get_infos_for_substances(site, substances):
             results[name]["cas_nrs"] = []
             results[name]["qids"] = qids
             results[name]["searchcount"].append(searchcount)
+            results[name]["fetch_failed"] = False
         
         else:
             incoming_links = count_incoming_links(site, name)
@@ -596,12 +603,15 @@ def get_infos_for_substances(site, substances):
                 incoming_links_templates = 0
             item = getWikidataItem(repo, wikidata_id)
             cas_numbers = []
+            fetch_failed = False
             if item:
                 wikidata_id = item.id # use redirect id, if it is a redirect
                 cas_numbers = get_cas_numbers(item)
+            else:
+                fetch_failed = True
                         
             result = has_german_wikipedia_link(site, item)
-            language_count = count_wikipedia_languages(site, item)
+            language_count = count_wikipedia_languages(site, item) if item else 0
             
             suspicious_instance_text = get_suspicious_instance_of_item(item)
             
@@ -617,6 +627,7 @@ def get_infos_for_substances(site, substances):
             results[wikidata_id]["cas_nrs"] = cas_numbers
             results[wikidata_id]["qids"] = qids
             results[wikidata_id]["searchcount"].append(searchcount)
+            results[wikidata_id]["fetch_failed"] = fetch_failed
             if suspicious_instance_text:
                 results[wikidata_id]["suspicious_instances"].append(suspicious_instance_text)
         
